@@ -10,24 +10,38 @@ const App = () => {
   const { isListening, text, speak, startListening } = useVoice();
 
   // 백엔드와 대화하는 함수
-  const processOrder = async (input: string) => {
-    try {
-      // 1. 백엔드에 전송 (조영찬 님 API 호출)
-      const data = await sendOrderText(input);
-      
-      // 2. 백엔드 응답 처리 (데이터 구조는 팀원과 맞춘 이름으로 수정!)
-      const botMessage = data.answer || data.message;
-      const shouldListenAgain = data.shouldListen || false;
+ // 상단에 상태 추가
+const [sessionId, setSessionId] = useState<string | null>(null);
 
+const processOrder = async (input: string) => {
+    try {
+      // 1. 데이터를 먼저 가져옵니다.
+      const data = await sendOrderText(input, sessionId);
+      
+      // 2. 백엔드에서 온 메시지를 변수에 확실히 담습니다.
+      const botMessage = data.response; 
+      
+      if (data.sessionId) setSessionId(data.sessionId);
       setResponse(botMessage);
-      speak(botMessage, () => {
-        if (shouldListenAgain) handleStart(); // 답변 후 필요하면 다시 듣기
-      });
+
+      // 3. 소리 내기 (botMessage가 확실히 있을 때만 실행)
+      if (botMessage) {
+        console.log("TTS 호출됨:", botMessage); // 확인용 로그
+        speak(botMessage, () => {
+          // 4. 소리가 다 끝나면 다음 동작 수행
+          if (!data.slotsComplete) {
+            handleStart(); 
+          }
+        });
+      }
+
     } catch (error) {
+      console.error("에러 발생:", error);
       setResponse("서버와 연결할 수 없습니다.");
       speak("서버와 연결할 수 없습니다.");
     }
   };
+
 
   const handleStart = () => {
     startListening((transcript: string) => {
