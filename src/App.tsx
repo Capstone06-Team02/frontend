@@ -1,37 +1,76 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Mic, AudioLines } from 'lucide-react';
-// 경로를 현재 src 폴더 기준으로 맞춥니다.
 import { useVoice } from './hooks/useVoice'; 
 import { sendOrderText } from './api/order'; 
 import './index.css';
 
 const App = () => {
-  const [response, setResponse] = useState<string>('안녕하세요! 무엇을 도와드릴까요?');
+  const [response, setResponse] = useState<string>('원하시는 메뉴를 말씀해주세요');
+  const sessionIdRef = useRef<string | null>(null); 
   const { isListening, text, speak, startListening } = useVoice();
 
-  // 백엔드와 대화하는 함수
- // 상단에 상태 추가
-const [sessionId, setSessionId] = useState<string | null>(null);
+  // 텍스트 정규화 함수: 한글 숫자를 아라비아 숫자로 변환하고 공백 제거
+  // 텍스트 정규화 함수: 한글 숫자를 아라비아 숫자로 변환하고 공백 제거
+const normalizeText = (rawText: string) => {
+  const numberMap: { [key: string]: string } = {
+    '한': '1', '두': '2', '세': '3', '네': '4', '다섯': '5',
+    '여섯': '6', '일곱': '7', '여덟': '8', '아홉': '9', '열': '10'
+  };
+  
+  // 1. '두 개' -> '2 개' 로 변환
+  let converted = rawText.replace(/한|두|세|네|다섯|여섯|일곱|여덟|아홉|열/g, match => numberMap[match]);
+  
+  // 2. 숫자와 '개' 사이의 모든 공백 제거 ("2 개" -> "2개")
+  converted = converted.replace(/(\d)\s*(개)/g, '$1$2');
+  
+  // 3. (추가) "네" 오인식 보정: "44", "내", "데" 등으로 인식되면 "네"로 변경
+  const trimmedText = converted.trim();
+  if (trimmedText === "44" || trimmedText === "내" || trimmedText === "데") {
+    converted = "네";
+  }
+  
+  // 4. 백엔드가 단답형을 인식하지 못할 경우를 대비해 "주세요" 강제 추가 (임시 꼼수)
+  // 단, "네"라고 대답할 때는 "주세요"를 붙이지 않도록 조건 확인
+  if (/^\d+개$/.test(converted.trim())) {
+    converted = converted.trim() + " 주세요";
+  }
+  
+  return converted;
+};
 
-const processOrder = async (input: string) => {
+  const processOrder = async (input: string) => {
     try {
-      // 1. 데이터를 먼저 가져옵니다.
-      const data = await sendOrderText(input, sessionId);
+      // 변환 로직 실행
+      const normalizedInput = normalizeText(input);
+      console.log("서버로 보내는 최종 텍스트:", normalizedInput);
+
+      // CRITICAL 수정: 'input' 대신 변환된 'normalizedInput'을 전송해야 합니다
+      const data = await sendOrderText(normalizedInput, sessionIdRef.current);
       
-      // 2. 백엔드에서 온 메시지를 변수에 확실히 담습니다.
       const botMessage = data.response; 
       
-      if (data.sessionId) setSessionId(data.sessionId);
+      if (data.sessionId) {
+        sessionIdRef.current = data.sessionId;
+        console.log("현재 세션 ID 유지 중:", sessionIdRef.current);
+      }
+
       setResponse(botMessage);
 
-      // 3. 소리 내기 (botMessage가 확실히 있을 때만 실행)
       if (botMessage) {
-        console.log("TTS 호출됨:", botMessage); // 확인용 로그
         speak(botMessage, () => {
-          // 4. 소리가 다 끝나면 다음 동작 수행
-          if (!data.slotsComplete) {
-            handleStart(); 
-          }
+          // 약간의 지연(300ms)을 주어 이전 세션이 완전히 정리되게 함
+          setTimeout(() => {
+            if (data.slotsComplete === false) {
+               handleStart(); 
+            } 
+            else if (data.slotsComplete === true && data.intent === "ORDER") {
+               console.log("최종 확인을 위해 마이크를 켭니다.");
+               handleStart(); 
+            }
+            else if (data.intent === "CONFIRM") {
+               console.log("주문 완료됨");
+            }
+          }, 300); 
         });
       }
 
@@ -41,7 +80,6 @@ const processOrder = async (input: string) => {
       speak("서버와 연결할 수 없습니다.");
     }
   };
-
 
   const handleStart = () => {
     startListening((transcript: string) => {
