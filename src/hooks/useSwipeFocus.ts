@@ -26,7 +26,9 @@ export const useSwipeFocus = () => {
     touchStartX.current = null;
 
     if (Math.abs(diffX) < 40) return;
-    moveFocus(diffX < 0 ? 1 : -1);
+
+    navigator.vibrate?.(20);
+    moveFocus(diffX > 0 ? 1 : -1);
   };
 
   const assignButtonRef = (button: HTMLButtonElement | null, index: number) => {

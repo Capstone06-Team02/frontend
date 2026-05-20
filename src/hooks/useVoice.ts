@@ -30,6 +30,15 @@ type VoiceRecognition = {
 
 type VoiceRecognitionConstructor = new () => VoiceRecognition;
 
+const VOICE_STORAGE_KEY = 'voisk:selectedVoiceURI';
+
+const findStoredVoice = () => {
+  const selectedVoiceURI = window.localStorage.getItem(VOICE_STORAGE_KEY);
+  const voices = window.speechSynthesis.getVoices();
+
+  return voices.find((voice) => voice.voiceURI === selectedVoiceURI);
+};
+
 declare global {
   interface Window {
     SpeechRecognition?: VoiceRecognitionConstructor;
@@ -46,6 +55,12 @@ export const useVoice = () => {
     window.speechSynthesis.cancel(); // 이전 음성 중단
 
     const utterance = new SpeechSynthesisUtterance(message);
+    const selectedVoice = findStoredVoice();
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+
     utterance.lang = 'ko-KR';
     utterance.rate = 1.0;
 
