@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { ChevronLeft, Contrast, Minus, Plus, Type, Volume2 } from 'lucide-react';
-import { useSwipeFocus } from '../hooks/useSwipeFocus';
 import type { PageWithSpeechProps } from '../types/order';
 
 export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
@@ -8,8 +7,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
   const [highContrast, setHighContrast] = useState(false);
   const [autoGuide, setAutoGuide] = useState(true);
   const [voiceSpeed, setVoiceSpeed] = useState(1);
-  const { assignButtonRef, handleTouchEnd, handleTouchStart } = useSwipeFocus();
-  let focusIndex = 0;
 
   const pageTone = highContrast ? 'bg-black text-white' : 'bg-slate-50 text-slate-950';
   const panelTone = highContrast ? 'border-white bg-black text-white' : 'border-slate-200 bg-white text-slate-950';
@@ -33,7 +30,7 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
   };
 
   return (
-    <main className={`h-dvh overflow-hidden ${pageTone}`} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+    <main className={`h-dvh overflow-hidden ${pageTone}`}>
       <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(20px,env(safe-area-inset-top))]">
         <header className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -42,7 +39,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
           </div>
           <button
             type="button"
-            ref={(button) => assignButtonRef(button, focusIndex++)}
             onClick={() => {
               window.location.href = '/';
             }}
@@ -62,7 +58,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
         <section className="grid flex-1 gap-2" aria-label="접근성 설정 목록">
           <button
             type="button"
-            ref={(button) => assignButtonRef(button, focusIndex++)}
             onClick={() => {
               window.location.href = '/voice';
             }}
@@ -81,7 +76,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
 
           <button
             type="button"
-            ref={(button) => assignButtonRef(button, focusIndex++)}
             onClick={() => toggleSetting('큰 글자', largeText, setLargeText)}
             onFocus={() => speak(`큰 글자 버튼, 현재 ${largeText ? '켜짐' : '꺼짐'}`)}
             aria-pressed={largeText}
@@ -103,7 +97,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
 
           <button
             type="button"
-            ref={(button) => assignButtonRef(button, focusIndex++)}
             onClick={() => toggleSetting('고대비 화면', highContrast, setHighContrast)}
             onFocus={() => speak(`고대비 화면 버튼, 현재 ${highContrast ? '켜짐' : '꺼짐'}`)}
             aria-pressed={highContrast}
@@ -121,7 +114,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
 
           <button
             type="button"
-            ref={(button) => assignButtonRef(button, focusIndex++)}
             onClick={() => toggleSetting('자동 음성 안내', autoGuide, setAutoGuide)}
             onFocus={() => speak(`자동 음성 안내 버튼, 현재 ${autoGuide ? '켜짐' : '꺼짐'}`)}
             aria-pressed={autoGuide}
@@ -147,7 +139,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
             <div className="mt-2 grid grid-cols-2 gap-3">
               <button
                 type="button"
-                ref={(button) => assignButtonRef(button, focusIndex++)}
                 onClick={() => changeVoiceSpeed(-0.25)}
                 onFocus={() => speak(`음성 속도 느리게 버튼, 현재 ${voiceSpeed.toFixed(2)}배`)}
                 aria-label={`음성 속도 느리게, 현재 ${voiceSpeed.toFixed(2)}배`}
@@ -157,7 +148,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
               </button>
               <button
                 type="button"
-                ref={(button) => assignButtonRef(button, focusIndex++)}
                 onClick={() => changeVoiceSpeed(0.25)}
                 onFocus={() => speak(`음성 속도 빠르게 버튼, 현재 ${voiceSpeed.toFixed(2)}배`)}
                 aria-label={`음성 속도 빠르게, 현재 ${voiceSpeed.toFixed(2)}배`}

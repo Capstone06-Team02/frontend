@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
-import { useSwipeFocus } from '../hooks/useSwipeFocus';
 import type { PageWithSpeechProps } from '../types/order';
 
 const VOICE_STORAGE_KEY = 'voisk:selectedVoiceURI';
@@ -16,8 +15,6 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState(() => window.localStorage.getItem(VOICE_STORAGE_KEY) || '');
   const [voiceIndex, setVoiceIndex] = useState(0);
-  const { assignButtonRef, handleTouchEnd, handleTouchStart } = useSwipeFocus();
-  let focusIndex = 0;
 
   const currentVoice = voices[voiceIndex];
   const voiceName = currentVoice ? `${currentVoice.name}, ${currentVoice.lang}` : '사용 가능한 목소리 없음';
@@ -69,11 +66,7 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
   };
 
   return (
-    <main
-      className="h-dvh overflow-hidden bg-slate-50 text-slate-950"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
+    <main className="h-dvh overflow-hidden bg-slate-50 text-slate-950">
       <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(20px,env(safe-area-inset-top))]">
         <header className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -110,7 +103,6 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              ref={(button) => assignButtonRef(button, focusIndex++)}
               onClick={() => moveVoice(-1)}
               onFocus={() => speak('이전 목소리 버튼')}
               aria-label="이전 목소리"
@@ -120,7 +112,6 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
             </button>
             <button
               type="button"
-              ref={(button) => assignButtonRef(button, focusIndex++)}
               onClick={() => moveVoice(1)}
               onFocus={() => speak('다음 목소리 버튼')}
               aria-label="다음 목소리"
@@ -132,7 +123,6 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
 
           <button
             type="button"
-            ref={(button) => assignButtonRef(button, focusIndex++)}
             onClick={() => speak('이 목소리는 Voisk 음성 안내에 사용됩니다.')}
             onFocus={() => speak('미리 듣기 버튼')}
             aria-label="미리 듣기"
@@ -143,7 +133,6 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
 
           <button
             type="button"
-            ref={(button) => assignButtonRef(button, focusIndex++)}
             onClick={selectVoice}
             onFocus={() => speak('이 목소리 선택 버튼')}
             aria-label="이 목소리 선택"

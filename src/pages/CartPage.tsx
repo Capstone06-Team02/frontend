@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeft, Minus, Plus, Trash2 } from 'lucide-react';
 import { INITIAL_CART_ITEMS } from '../constants/menu';
-import { useSwipeFocus } from '../hooks/useSwipeFocus';
 import type { CartItem } from '../types/menu';
 import type { PageWithSpeechProps } from '../types/order';
 import { formatPrice } from '../utils/format';
@@ -9,9 +8,7 @@ import { formatPrice } from '../utils/format';
 export const CartPage = ({ speak }: PageWithSpeechProps) => {
   const [cartItems, setCartItems] = useState<CartItem[]>(INITIAL_CART_ITEMS);
   const [activeItem, setActiveItem] = useState('주문 금액');
-  const { assignButtonRef, handleTouchEnd, handleTouchStart } = useSwipeFocus();
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  let focusIndex = 0;
   const activeClass = 'border-sky-700 bg-sky-100 shadow-md';
   const inactiveClass = 'border-slate-300 bg-white shadow-sm';
 
@@ -36,11 +33,7 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
   };
 
   return (
-    <main
-      className="h-dvh overflow-hidden bg-slate-50 text-slate-950"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
+    <main className="h-dvh overflow-hidden bg-slate-50 text-slate-950">
       <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(20px,env(safe-area-inset-top))]">
         <header className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -49,7 +42,6 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
           </div>
           <button
             type="button"
-            ref={(button) => assignButtonRef(button, focusIndex++)}
             onClick={() => {
               window.location.href = '/options';
             }}
@@ -66,7 +58,6 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
 
         <button
           type="button"
-          ref={(button) => assignButtonRef(button, focusIndex++)}
           onClick={() => speak(`주문 금액 ${formatPrice(totalPrice)}. 총 ${cartItems.length}개 메뉴`)}
           onFocus={() => {
             setActiveItem('주문 금액');
@@ -91,7 +82,6 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
                 <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
                   <button
                     type="button"
-                    ref={(button) => assignButtonRef(button, focusIndex++)}
                     onFocus={() => {
                       setActiveItem(item.name);
                       speak(
@@ -114,7 +104,6 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
                   <div className="mt-2 grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      ref={(button) => assignButtonRef(button, focusIndex++)}
                       onClick={() => updateQuantity(item, -1)}
                       onFocus={() => {
                         setActiveItem(`${item.name} 수량 줄이기`);
@@ -135,7 +124,6 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
                     </p>
                     <button
                       type="button"
-                      ref={(button) => assignButtonRef(button, focusIndex++)}
                       onClick={() => updateQuantity(item, 1)}
                       onFocus={() => {
                         setActiveItem(`${item.name} 수량 늘리기`);
@@ -152,7 +140,6 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
 
                   <button
                     type="button"
-                    ref={(button) => assignButtonRef(button, focusIndex++)}
                     onClick={() => removeItem(item)}
                     onFocus={() => {
                       setActiveItem(`${item.name} 삭제`);
@@ -178,7 +165,6 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
 
         <button
           type="button"
-          ref={(button) => assignButtonRef(button, focusIndex++)}
           onClick={() => speak(`총 주문 금액 ${formatPrice(totalPrice)}. 주문을 진행합니다.`)}
           onFocus={() => {
             setActiveItem('주문하기');

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useSwipeFocus } from '../hooks/useSwipeFocus';
 import type { PageWithSpeechProps } from '../types/order';
 
 const HELP_ITEMS = [
@@ -9,7 +8,7 @@ const HELP_ITEMS = [
   },
   {
     title: '버튼 이동',
-    body: '옵션, 장바구니, 설정 화면에서는 오른쪽으로 스와이프하면 다음 버튼으로 이동합니다. 왼쪽으로 스와이프하면 이전 버튼으로 이동합니다.',
+    body: '아이폰 VoiceOver를 켠 상태에서 오른쪽으로 스와이프하면 다음 버튼으로 이동합니다. 왼쪽으로 스와이프하면 이전 버튼으로 이동합니다.',
   },
   {
     title: '장바구니 확인',
@@ -23,18 +22,12 @@ const HELP_ITEMS = [
 
 export const HelpPage = ({ speak }: PageWithSpeechProps) => {
   const [activeItem, setActiveItem] = useState('음성 주문 시작');
-  const { assignButtonRef, handleTouchEnd, handleTouchStart } = useSwipeFocus();
-  let focusIndex = 0;
 
   const activeClass = 'border-sky-700 bg-sky-100 shadow-md';
   const inactiveClass = 'border-slate-300 bg-white shadow-sm';
 
   return (
-    <main
-      className="h-dvh overflow-hidden bg-slate-50 text-slate-950"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
+    <main className="h-dvh overflow-hidden bg-slate-50 text-slate-950">
       <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(20px,env(safe-area-inset-top))]">
         <header className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -67,7 +60,6 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
               <button
                 key={item.title}
                 type="button"
-                ref={(button) => assignButtonRef(button, focusIndex++)}
                 onClick={() => speak(`${item.title}. ${item.body}`)}
                 onFocus={() => {
                   setActiveItem(item.title);
@@ -88,7 +80,6 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
 
         <button
           type="button"
-          ref={(button) => assignButtonRef(button, focusIndex++)}
           onClick={() => {
             window.location.href = '/accessibility';
           }}
