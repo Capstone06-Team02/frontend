@@ -10,8 +10,11 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'https://api.voisk.cloud',
         changeOrigin: true,
+        headers: {
+          Origin: 'https://api.voisk.cloud',
+        },
       },
     },
   },

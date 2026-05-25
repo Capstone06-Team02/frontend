@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ChevronLeft, Contrast, Minus, Plus, Type, Volume2 } from 'lucide-react';
+import { Contrast, Minus, Plus, Type, Volume2 } from 'lucide-react';
+import { AppHeader } from '../components/AppHeader';
 import type { PageWithSpeechProps } from '../types/order';
 
 export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
@@ -12,7 +13,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
   const panelTone = highContrast ? 'border-white bg-black text-white' : 'border-slate-200 bg-white text-slate-950';
   const mutedText = highContrast ? 'text-slate-200' : 'text-slate-500';
   const focusRing = highContrast ? 'focus:ring-yellow-300' : 'focus:ring-sky-300';
-  const titleSize = largeText ? 'text-3xl' : 'text-2xl';
   const labelSize = largeText ? 'text-xl' : 'text-lg';
 
   const toggleSetting = (name: string, enabled: boolean, update: (value: boolean) => void) => {
@@ -30,25 +30,15 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
   };
 
   return (
-    <main className={`h-dvh overflow-hidden ${pageTone}`}>
-      <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(20px,env(safe-area-inset-top))]">
-        <header className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className={`text-sm font-semibold ${highContrast ? 'text-yellow-200' : 'text-sky-700'}`}>접근성 설정</p>
-            <h1 className={`mt-1 font-black leading-tight tracking-normal ${titleSize}`}>Voisk</h1>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = '/';
-            }}
-            onFocus={() => speak('음성 주문 화면으로 돌아가기 버튼')}
-            aria-label="음성 주문 화면으로 돌아가기"
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border ${panelTone} focus:outline-none focus:ring-4 ${focusRing}`}
-          >
-            <ChevronLeft aria-hidden="true" size={28} />
-          </button>
-        </header>
+    <div className={`h-[calc(100dvh+96px)] overflow-hidden ${pageTone}`}>
+      <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(24px,env(safe-area-inset-top))]">
+        <AppHeader
+          onBack={() => {
+            window.location.href = '/';
+          }}
+          subtitle="접근성 설정"
+          tone={highContrast ? 'contrast' : 'light'}
+        />
 
         <section aria-live="polite" aria-atomic="true" className={`mb-3 rounded-lg border px-4 py-3 ${panelTone}`}>
           <p className={`text-sm font-semibold ${mutedText}`}>설정 미리보기</p>
@@ -79,7 +69,7 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
             onClick={() => toggleSetting('큰 글자', largeText, setLargeText)}
             onFocus={() => speak(`큰 글자 버튼, 현재 ${largeText ? '켜짐' : '꺼짐'}`)}
             aria-pressed={largeText}
-            aria-label={`큰 글자, ${largeText ? '켜짐' : '꺼짐'}`}
+            aria-label={`큰 글자 ${largeText ? '켜짐' : '꺼짐'}`}
             className={`flex min-h-0 w-full items-center justify-between gap-4 rounded-lg border-2 px-4 py-3 text-left shadow-sm focus:outline-none focus:ring-4 ${focusRing} ${
               largeText
                 ? highContrast
@@ -100,7 +90,7 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
             onClick={() => toggleSetting('고대비 화면', highContrast, setHighContrast)}
             onFocus={() => speak(`고대비 화면 버튼, 현재 ${highContrast ? '켜짐' : '꺼짐'}`)}
             aria-pressed={highContrast}
-            aria-label={`고대비 화면, ${highContrast ? '켜짐' : '꺼짐'}`}
+            aria-label={`고대비 화면 ${highContrast ? '켜짐' : '꺼짐'}`}
             className={`flex min-h-0 w-full items-center justify-between gap-4 rounded-lg border-2 px-4 py-3 text-left shadow-sm focus:outline-none focus:ring-4 ${focusRing} ${
               highContrast ? 'border-yellow-300 bg-zinc-900' : 'border-slate-300 bg-white'
             }`}
@@ -117,7 +107,7 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
             onClick={() => toggleSetting('자동 음성 안내', autoGuide, setAutoGuide)}
             onFocus={() => speak(`자동 음성 안내 버튼, 현재 ${autoGuide ? '켜짐' : '꺼짐'}`)}
             aria-pressed={autoGuide}
-            aria-label={`자동 음성 안내, ${autoGuide ? '켜짐' : '꺼짐'}`}
+            aria-label={`자동 음성 안내 ${autoGuide ? '켜짐' : '꺼짐'}`}
             className={`flex min-h-0 w-full items-center justify-between gap-4 rounded-lg border-2 px-4 py-3 text-left shadow-sm focus:outline-none focus:ring-4 ${focusRing} ${
               autoGuide
                 ? highContrast
@@ -141,7 +131,7 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
                 type="button"
                 onClick={() => changeVoiceSpeed(-0.25)}
                 onFocus={() => speak(`음성 속도 느리게 버튼, 현재 ${voiceSpeed.toFixed(2)}배`)}
-                aria-label={`음성 속도 느리게, 현재 ${voiceSpeed.toFixed(2)}배`}
+                aria-label={`음성 속도 느리게 현재 ${voiceSpeed.toFixed(2)}배`}
                 className={`flex min-h-12 items-center justify-center rounded-lg border font-black focus:outline-none focus:ring-4 ${focusRing} ${panelTone}`}
               >
                 <Minus aria-hidden="true" size={28} />
@@ -150,7 +140,7 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
                 type="button"
                 onClick={() => changeVoiceSpeed(0.25)}
                 onFocus={() => speak(`음성 속도 빠르게 버튼, 현재 ${voiceSpeed.toFixed(2)}배`)}
-                aria-label={`음성 속도 빠르게, 현재 ${voiceSpeed.toFixed(2)}배`}
+                aria-label={`음성 속도 빠르게 현재 ${voiceSpeed.toFixed(2)}배`}
                 className={`flex min-h-12 items-center justify-center rounded-lg border font-black focus:outline-none focus:ring-4 ${focusRing} ${panelTone}`}
               >
                 <Plus aria-hidden="true" size={28} />
@@ -159,6 +149,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
           </section>
         </section>
       </div>
-    </main>
+    </div>
   );
 };

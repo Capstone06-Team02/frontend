@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ChevronLeft, Minus, Plus, Trash2 } from 'lucide-react';
+import { Minus, Plus, Trash2 } from 'lucide-react';
+import { AppHeader } from '../components/AppHeader';
 import { INITIAL_CART_ITEMS } from '../constants/menu';
 import type { CartItem } from '../types/menu';
 import type { PageWithSpeechProps } from '../types/order';
@@ -33,28 +34,16 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
   };
 
   return (
-    <main className="h-dvh overflow-hidden bg-slate-50 text-slate-950">
-      <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(20px,env(safe-area-inset-top))]">
-        <header className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-sky-700">장바구니</p>
-            <h1 className="text-3xl font-black leading-tight tracking-normal">Voisk</h1>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = '/options';
-            }}
-            onFocus={() => {
-              setActiveItem('이전 화면');
-              speak('옵션 선택 화면으로 돌아가기 버튼');
-            }}
-            aria-label="옵션 선택 화면으로 돌아가기"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-4 focus:ring-sky-300"
-          >
-            <ChevronLeft aria-hidden="true" size={28} />
-          </button>
-        </header>
+    <div className="h-[calc(100dvh+96px)] overflow-hidden bg-slate-50 text-slate-950">
+      <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(24px,env(safe-area-inset-top))]">
+        <AppHeader
+          onBack={() => {
+            setActiveItem('이전 화면');
+            window.location.href = '/options';
+          }}
+          subtitle="장바구니"
+          tone="light"
+        />
 
         <button
           type="button"
@@ -63,7 +52,7 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
             setActiveItem('주문 금액');
             speak(`주문 금액 ${formatPrice(totalPrice)}. 총 ${cartItems.length}개 메뉴`);
           }}
-          aria-label={`주문 금액 ${formatPrice(totalPrice)}, 총 ${cartItems.length}개 메뉴`}
+          aria-label={`주문 금액 ${formatPrice(totalPrice)} 총 ${cartItems.length}개 메뉴`}
           className={`mb-3 rounded-lg border-2 px-4 py-3 text-left focus:outline-none focus:ring-4 focus:ring-sky-300 ${
             activeItem === '주문 금액' ? activeClass : inactiveClass
           }`}
@@ -89,7 +78,7 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
                       );
                     }}
                     onClick={() => speak(`${item.name} 장바구니 항목`)}
-                    aria-label={`${item.name}, ${item.optionSummary}, ${item.quantity}개, ${formatPrice(itemTotal)}`}
+                    aria-label={`${item.name} ${item.optionSummary} ${item.quantity}개 ${formatPrice(itemTotal)}`}
                     className={`flex min-h-0 w-full items-start rounded-lg border-2 p-2 text-left focus:outline-none focus:ring-4 focus:ring-sky-300 ${
                       activeItem === item.name ? activeClass : inactiveClass
                     }`}
@@ -170,13 +159,13 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
             setActiveItem('주문하기');
             speak(`주문하기 버튼, 총 금액 ${formatPrice(totalPrice)}`);
           }}
-          aria-label={`주문하기, 총 금액 ${formatPrice(totalPrice)}`}
+          aria-label={`주문하기 총 금액 ${formatPrice(totalPrice)}`}
           className="mt-3 flex min-h-14 w-full items-center justify-center rounded-lg bg-sky-700 text-xl font-black text-white shadow-sm focus:outline-none focus:ring-4 focus:ring-sky-300"
           disabled={cartItems.length === 0}
         >
           주문하기
         </button>
       </div>
-    </main>
+    </div>
   );
 };

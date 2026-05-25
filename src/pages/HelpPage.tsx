@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AppHeader } from '../components/AppHeader';
 import type { PageWithSpeechProps } from '../types/order';
 
 const HELP_ITEMS = [
@@ -27,28 +28,16 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
   const inactiveClass = 'border-slate-300 bg-white shadow-sm';
 
   return (
-    <main className="h-dvh overflow-hidden bg-slate-50 text-slate-950">
-      <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(20px,env(safe-area-inset-top))]">
-        <header className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-sky-700">사용자 도움말</p>
-            <h1 className="text-3xl font-black leading-tight tracking-normal">Voisk</h1>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = '/';
-            }}
-            onFocus={() => {
-              setActiveItem('돌아가기');
-              speak('음성 주문 화면으로 돌아가기 버튼');
-            }}
-            aria-label="음성 주문 화면으로 돌아가기"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-4 focus:ring-sky-300"
-          >
-            이전
-          </button>
-        </header>
+    <div className="h-[calc(100dvh+96px)] overflow-hidden bg-slate-50 text-slate-950">
+      <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(24px,env(safe-area-inset-top))]">
+        <AppHeader
+          onBack={() => {
+            setActiveItem('돌아가기');
+            window.location.href = '/';
+          }}
+          subtitle="사용자 도움말"
+          tone="light"
+        />
 
         <section aria-live="polite" aria-atomic="true" className="mb-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
           <p className="text-sm font-semibold text-slate-500">현재 선택</p>
@@ -93,6 +82,6 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
           접근성 설정
         </button>
       </div>
-    </main>
+    </div>
   );
 };

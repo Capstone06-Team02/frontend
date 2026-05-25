@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.voisk-screen-bg {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.voisk-screen-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 -96px;
+  background: radial-gradient(circle at top, #edf5ff 0%, #f8fbff 42%, #f4f0e8 100%);
+}
+
+.voisk-screen-bg > * {
+  position: relative;
+}

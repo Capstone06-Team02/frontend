@@ -1,10 +1,30 @@
-import axios from 'axios';
+import { apiClient } from './client';
+import type { MenuCacheResponse, OrderApiResponse } from '../types/order';
 
+const DEFAULT_RESTAURANT_ID = Number(
+  import.meta.env.VITE_RESTAURANT_ID ?? import.meta.env.VITE_STORE_ID ?? 1,
+);
 
-export const sendOrderText = async (text: string, sessionId: string | null) => {
-  const response = await axios.post('/api/order/speak', { 
-    input: text,       // OrderRequest.java 필드명에 맞춤
-    sessionId: sessionId // 이거 같이 보내야 백엔드가 기억
+export const getDefaultRestaurantId = () => DEFAULT_RESTAURANT_ID;
+
+export const cacheRestaurantMenus = async (
+  restaurantId = DEFAULT_RESTAURANT_ID,
+): Promise<MenuCacheResponse> => {
+  const response = await apiClient.post<MenuCacheResponse>(
+    `/api/order/stores/${restaurantId}/menus/cache`,
+  );
+  return response.data;
+};
+
+export const sendOrderText = async (
+  text: string,
+  sessionId: string | null,
+  restaurantId = DEFAULT_RESTAURANT_ID,
+): Promise<OrderApiResponse> => {
+  const response = await apiClient.post<OrderApiResponse>('/api/order/speak', {
+    input: text,
+    restaurantId,
+    sessionId,
   });
-  return response.data; 
+  return response.data;
 };
