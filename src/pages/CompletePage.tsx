@@ -1,30 +1,47 @@
 import { useEffect, useRef } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Mic } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import type { PageWithSpeechProps } from '../types/order';
 
 type CompletePageProps = PageWithSpeechProps & {
   completionMessage?: string;
+  guideMessage?: string;
+  isListening?: boolean;
+  onMicClick?: () => void;
   onHome?: () => void;
 };
 
-export const CompletePage = ({ completionMessage: messageFromProps, onHome, speak }: CompletePageProps) => {
+export const CompletePage = ({
+  completionMessage: messageFromProps,
+  guideMessage,
+  isListening = false,
+  onHome,
+  onMicClick,
+  speak,
+}: CompletePageProps) => {
   const didAnnounceRef = useRef(false);
+  const guideRef = useRef<HTMLParagraphElement>(null);
   const searchParams = new URLSearchParams(window.location.search);
   const completionMessage =
     messageFromProps || searchParams.get('response') || '주문이 완료되었어요! 곧 준비해드릴게요.';
+  const replayMessage = guideMessage || completionMessage;
 
   useEffect(() => {
     if (didAnnounceRef.current) return;
     didAnnounceRef.current = true;
 
     const timer = setTimeout(() => {
-      speak(completionMessage);
+      guideRef.current?.focus();
+      speak(replayMessage);
     }, 400);
 
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const replayGuide = () => {
+    window.setTimeout(() => guideRef.current?.focus(), 50);
+  };
 
   return (
     <div className="voisk-screen-bg text-slate-950">
@@ -34,6 +51,34 @@ export const CompletePage = ({ completionMessage: messageFromProps, onHome, spea
           onBack={() => { window.history.back(); }}
           subtitle="주문 완료"
         />
+
+        <p ref={guideRef} tabIndex={-1} className="sr-only">
+          {replayMessage}
+        </p>
+
+        {onMicClick && (
+          <div className="mb-4 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={onMicClick}
+              aria-label="마이크"
+              className={`flex min-h-14 items-center justify-center gap-2 rounded-xl px-4 text-xl font-black shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
+                isListening ? 'bg-rose-100 text-rose-700' : 'bg-blue-700 text-white'
+              }`}
+            >
+              <Mic aria-hidden="true" size={24} />
+              마이크
+            </button>
+            <button
+              type="button"
+              onClick={replayGuide}
+              aria-label="다시 듣기"
+              className="flex min-h-14 items-center justify-center rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+            >
+              다시 듣기
+            </button>
+          </div>
+        )}
 
         {/* 완료 아이콘 + 메시지 */}
         <div className="flex flex-1 flex-col items-center justify-center text-center" aria-live="polite" aria-atomic="true">

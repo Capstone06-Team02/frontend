@@ -38,10 +38,10 @@ export const AppHeader = ({
         </button>
       )}
 
-      <div className="min-w-0 text-center">
+      <div aria-hidden="true" className="min-w-0 text-center">
         <div className={`text-4xl font-black leading-tight tracking-normal ${titleClass}`}>Voisk</div>
         {subtitle && (
-          <p aria-hidden="true" className={`truncate text-sm font-black ${subtitleClass}`}>
+          <p className={`truncate text-sm font-black ${subtitleClass}`}>
             {subtitle}
           </p>
         )}

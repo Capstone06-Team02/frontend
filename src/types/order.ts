@@ -88,6 +88,19 @@ export type MenuCacheResponse = {
   restaurantName: string;
 };
 
+export type RecommendationInfo = {
+  category: string;
+  menuId: number;
+  name: string;
+  price: number;
+  score: number;
+};
+
+export type RecommendApiResponse = {
+  recommendations: RecommendationInfo[];
+  ttsText: string;
+};
+
 export type Speak = (message: string, onEnd?: () => void) => void;
 
 export type PageWithSpeechProps = {

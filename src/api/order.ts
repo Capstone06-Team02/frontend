@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { MenuCacheResponse, OrderApiResponse } from '../types/order';
+import type { MenuCacheResponse, OrderApiResponse, RecommendApiResponse } from '../types/order';
 
 const DEFAULT_RESTAURANT_ID = Number(
   import.meta.env.VITE_RESTAURANT_ID ?? import.meta.env.VITE_STORE_ID ?? 1,
@@ -25,6 +25,17 @@ export const sendOrderText = async (
     input: text,
     restaurantId,
     sessionId,
+  });
+  return response.data;
+};
+
+export const fetchRecommendations = async (
+  text: string,
+  storeId = DEFAULT_RESTAURANT_ID,
+): Promise<RecommendApiResponse> => {
+  const response = await apiClient.post<RecommendApiResponse>('/api/recommend', {
+    text,
+    storeId,
   });
   return response.data;
 };

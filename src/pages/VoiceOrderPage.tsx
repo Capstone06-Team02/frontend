@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { BookOpen, Coffee, Lightbulb, Mic } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { CompletePage } from './CompletePage';
 import {
   cacheRestaurantMenus,
+  fetchRecommendations,
   getDefaultRestaurantId,
   sendOrderText,
 } from '../api/order';
@@ -24,6 +25,14 @@ type SubmitOrderOptions = {
   preserveInput?: boolean;
 };
 
+type VoiceControlsProps = {
+  disabled?: boolean;
+  guideRef?: RefObject<HTMLElement | null>;
+  isListening: boolean;
+  micRef?: RefObject<HTMLButtonElement | null>;
+  onMicClick: () => void;
+};
+
 type HomeAction = {
   description: string;
   icon: typeof BookOpen;
@@ -37,19 +46,19 @@ const HOME_ACTIONS: HomeAction[] = [
   {
     label: '메뉴판',
     speechInput: '메뉴판 보여줘',
-    description: '현재 주문 가능한 메뉴를 확인합니다.',
+    description: '현재 주문 가능한 전체 메뉴를 확인합니다.',
     icon: BookOpen,
   },
   {
     label: '메뉴 추천',
     speechInput: '메뉴 추천',
-    description: '추천 메뉴를 받아 바로 선택합니다.',
+    description: '사용자 취향에 맞게 메뉴를 추천해드립니다.',
     icon: Lightbulb,
   },
   {
-    label: '메뉴 주문',
+    label: '즉시 주문',
     speechInput: '메뉴 주문',
-    description: '마실 메뉴를 바로 말합니다.',
+    description: '메뉴를 즉시 음성으로 주문하실 수 있습니다.',
     icon: Coffee,
   },
 ];
@@ -123,6 +132,40 @@ const getSelectedOptionLabels = (data: OrderApiResponse | null) =>
     })
     .filter(Boolean) ?? [];
 
+const VoiceControls = ({ disabled = false, guideRef, isListening, micRef, onMicClick }: VoiceControlsProps) => {
+  const replayGuide = () => {
+    window.setTimeout(() => guideRef?.current?.focus(), 50);
+  };
+
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-3">
+      <button
+        ref={micRef}
+        type="button"
+        onClick={onMicClick}
+        disabled={disabled}
+        aria-label="마이크"
+        className={`flex min-h-14 items-center justify-center gap-2 rounded-xl px-4 text-xl font-black shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
+          isListening
+            ? 'bg-rose-100 text-rose-700'
+            : 'bg-blue-700 text-white'
+        }`}
+      >
+        <Mic aria-hidden="true" size={24} />
+        마이크
+      </button>
+      <button
+        type="button"
+        onClick={replayGuide}
+        aria-label="다시 듣기"
+        className="flex min-h-14 items-center justify-center rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+      >
+        다시 듣기
+      </button>
+    </div>
+  );
+};
+
 export const VoiceOrderPage = () => {
   const [mode, setMode] = useState<ScreenMode>('home');
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -139,7 +182,9 @@ export const VoiceOrderPage = () => {
   const hasInitializedMicRef = useRef(false);   // 마이크 권한 최초 요청 여부
   const micInitializedRef = useRef(false);       // announcement 활성화 여부
   const firstReplyRef = useRef<HTMLButtonElement>(null);
+  const micButtonRef = useRef<HTMLButtonElement>(null);
   const currentSelectionRef = useRef<HTMLDivElement>(null);
+  const homeGuideRef = useRef<HTMLParagraphElement>(null);
   const responseGuideRef = useRef<HTMLParagraphElement>(null);
   const viewHistoryRef = useRef<ViewSnapshot[]>([]);
 
@@ -163,6 +208,11 @@ export const VoiceOrderPage = () => {
   const hasManyReplies = quickReplies.length >= 4;
   const hasDenseReplies = quickReplies.length >= 5;
   const hasCrowdedReplies = quickReplies.length >= 6;
+  const responseGuideText = lastResponse?.response
+    ? `${lastResponse.response}${
+        dialogStep === 'quantity' ? ' 수량 먼저 고르신 후 뒤에 옵션 커스텀 도와드릴게요.' : ''
+      }`
+    : '';
 
   useEffect(() => {
     if (mode !== 'order-dialog') return;
@@ -192,6 +242,18 @@ export const VoiceOrderPage = () => {
     const timer = setTimeout(() => responseGuideRef.current?.focus(), 350);
     return () => clearTimeout(timer);
   }, [mode, lastResponse?.response]);
+
+  useEffect(() => {
+    if (mode !== 'menu-board' || !menuCache) return;
+    const timer = setTimeout(() => responseGuideRef.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, [mode, menuCache]);
+
+  useEffect(() => {
+    if (mode !== 'home') return;
+    const timer = setTimeout(() => homeGuideRef.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, [mode]);
 
   // ── 메뉴 캐시 ────────────────────────────────────────────────────────────────
   const ensureMenuCache = async () => {
@@ -249,6 +311,39 @@ export const VoiceOrderPage = () => {
       if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
       unlockTimerRef.current = setTimeout(() => setIsReplyLocked(false), 500);
     });
+  };
+
+  const showRecommendations = async (input: string) => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    try {
+      await ensureMenuCache();
+      const data = await fetchRecommendations(input, RESTAURANT_ID);
+      const replies = data.recommendations.map((menu) => menu.name).filter(Boolean);
+
+      pushCurrentView();
+      setSessionId(null);
+      setMode('order-dialog');
+      setLastResponse({
+        intent: 'RECOMMEND',
+        quickReplies: replies,
+        response: data.ttsText,
+        slots: {
+          menu: null,
+          optionSlots: [],
+          quantity: null,
+        },
+        slotsComplete: false,
+      });
+      speakAndUnlock(data.ttsText);
+    } catch (error) {
+      console.error('추천 API 호출 실패:', error);
+      speak('추천 메뉴를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // ── 주문 완료 이동 ───────────────────────────────────────────────────────────
@@ -314,6 +409,11 @@ export const VoiceOrderPage = () => {
       return;
     }
 
+    if (wantsRecommendation(input)) {
+      showRecommendations(input);
+      return;
+    }
+
     const sessionForRequest = shouldStartFreshSession(input) ? null : nextSessionId;
 
     setIsSubmitting(true);
@@ -370,6 +470,11 @@ export const VoiceOrderPage = () => {
         showMenuBoard();
         return;
       }
+      if (action.label === '즉시 주문') {
+        setSessionId(null);
+        handleMicClick();
+        return;
+      }
       setSessionId(null);
       submitOrderText(action.speechInput, null);
     });
@@ -414,6 +519,8 @@ export const VoiceOrderPage = () => {
       }
       submitOrderText(normalized);
     });
+
+    window.setTimeout(() => micButtonRef.current?.focus(), 150);
   };
 
   // ── 메뉴판에서 카테고리별 그룹 ──────────────────────────────────────────────
@@ -434,6 +541,9 @@ export const VoiceOrderPage = () => {
     return (
       <CompletePage
         completionMessage={completeResponse.response}
+        guideMessage={completeResponse.response}
+        isListening={isListening}
+        onMicClick={handleMicClick}
         onHome={goHome}
         speak={speak}
       />
@@ -449,6 +559,18 @@ export const VoiceOrderPage = () => {
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
 
           <AppHeader onBack={goBack} subtitle={menuCache?.restaurantName ?? '메뉴판'} />
+
+          <p ref={responseGuideRef} tabIndex={-1} className="sr-only">
+            {`${menuCache?.restaurantName ?? '메뉴판'} 메뉴판입니다. 메뉴를 선택해 주세요.`}
+          </p>
+
+          <VoiceControls
+            disabled={isSubmitting}
+            guideRef={responseGuideRef}
+            isListening={isListening}
+            micRef={micButtonRef}
+            onMicClick={handleMicClick}
+          />
 
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <div className="grid gap-4">
@@ -500,15 +622,23 @@ export const VoiceOrderPage = () => {
           </div>
           */}
 
-          {lastResponse?.response && (
+          {responseGuideText && (
             <p
               ref={responseGuideRef}
               tabIndex={-1}
               className="sr-only"
             >
-              {lastResponse.response}
+              {responseGuideText}
             </p>
           )}
+
+          <VoiceControls
+            disabled={isSubmitting}
+            guideRef={responseGuideRef}
+            isListening={isListening}
+            micRef={micButtonRef}
+            onMicClick={handleMicClick}
+          />
 
           {/* 수량 단계 전용: +/- 카운터 UI */}
           {dialogStep === 'quantity' && !isReplyLocked && (
@@ -714,29 +844,6 @@ export const VoiceOrderPage = () => {
             </>
           )}
 
-          {/* 마이크 버튼 — 하단 고정 (모든 화면 통일) */}
-          <div className={`mt-auto flex items-center justify-center ${hasManyReplies && dialogStep === 'option' ? 'pt-2' : 'pt-6'}`}>
-            <button
-              type="button"
-              onClick={handleMicClick}
-              disabled={isSubmitting}
-              aria-label="마이크"
-              className={`relative flex h-36 w-36 shrink-0 touch-manipulation items-center justify-center rounded-full transition duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300 focus:ring-offset-4 ${
-                isListening
-                  ? 'bg-rose-100 shadow-[0_0_44px_rgba(244,63,94,0.26)]'
-                  : 'bg-blue-700 shadow-[0_20px_52px_rgba(29,78,216,0.3)] active:scale-[0.99]'
-              }`}
-            >
-              {isListening && (
-                <span className="absolute inset-0 rounded-full bg-rose-400 opacity-10 animate-ping" />
-              )}
-              <Mic
-                aria-hidden="true"
-                size={64}
-                className={isListening ? 'text-rose-700' : 'text-white'}
-              />
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -751,13 +858,21 @@ export const VoiceOrderPage = () => {
 
         <AppHeader hideBack />
 
+        <p ref={homeGuideRef} tabIndex={-1} className="sr-only">
+          Voisk입니다. 이 화면에는 메뉴판, 메뉴 추천, 즉시 주문 버튼이 있습니다.
+          이 화면을 제외한 모든 화면의 좌측 상단에는 음성으로 주문하실 수 있는 마이크 기능이 있습니다. 우측 상단에는 다시 듣기 기능이 있습니다.
+          마이크 버튼을 두 번 탭하시면 마이크가 켜지고 원하는 내용을 말씀하신 후 다시 두 번 탭하면 마이크가 꺼집니다.
+          
+        </p>
+
         {/* VoiceOver 확인 중: 마이크 켜짐/꺼짐 안내 일시 중지
         <div aria-live="polite" aria-atomic="true" className="sr-only">
           {micAnnouncement}
         </div>
         */}
 
-        <div className="mt-12 grid gap-4">
+        <div className="flex flex-1 items-center">
+          <div className="grid w-full gap-4 pb-16">
           {HOME_ACTIONS.map((action) => {
             const Icon = action.icon;
             return (
@@ -765,7 +880,7 @@ export const VoiceOrderPage = () => {
                 key={action.label}
                 type="button"
                 onClick={() => handleHomeAction(action)}
-                aria-label={action.label}
+                aria-label={`${action.label}. ${action.description}`}
                 className="flex min-h-24 items-center gap-4 rounded-xl bg-slate-950 px-6 text-left text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
               >
                 <Icon aria-hidden="true" className="shrink-0" size={32} />
@@ -778,30 +893,7 @@ export const VoiceOrderPage = () => {
               </button>
             );
           })}
-        </div>
-
-        {/* 마이크 버튼 */}
-        <div className="mt-auto flex items-center justify-center pt-6">
-          <button
-            type="button"
-            onClick={handleMicClick}
-            disabled={isSubmitting}
-            aria-label="마이크"
-            className={`relative flex h-36 w-36 shrink-0 touch-manipulation items-center justify-center rounded-full transition duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300 focus:ring-offset-4 ${
-              isListening
-                ? 'bg-rose-100 shadow-[0_0_44px_rgba(244,63,94,0.26)]'
-                : 'bg-blue-700 shadow-[0_20px_52px_rgba(29,78,216,0.3)] active:scale-[0.99]'
-            }`}
-          >
-            {isListening && (
-              <span className="absolute inset-0 rounded-full bg-rose-400 opacity-10 animate-ping" />
-            )}
-            <Mic
-              aria-hidden="true"
-              size={64}
-              className={isListening ? 'text-rose-700' : 'text-white'}
-            />
-          </button>
+          </div>
         </div>
       </div>
     </div>
