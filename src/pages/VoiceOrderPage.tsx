@@ -15,7 +15,7 @@ import { formatPrice } from '../utils/format';
 import { normalizeOrderText } from '../utils/voice';
 
 type ScreenMode = 'home' | 'menu-board' | 'order-dialog';
-type DialogStep = 'menu' | 'quantity' | 'option' | 'confirm' | 'complete' | 'continue';
+type DialogStep = 'menu' | 'recommend' | 'quantity' | 'option' | 'confirm' | 'complete' | 'continue';
 type ViewSnapshot = {
   lastResponse: OrderApiResponse | null;
   mode: ScreenMode;
@@ -94,6 +94,7 @@ const getDialogStep = (data: OrderApiResponse | null): DialogStep => {
     replies.every((reply) => ['네', '아니요', '아니오', '맞습니다', '확인'].includes(reply));
 
   if (data && isFinalCompleteResponse(data)) return 'complete';
+  if (data?.intent === 'RECOMMEND' || data?.intent === 'RECOMMEND_INPUT') return 'recommend';
   if (!hasMenu) return 'menu';
   if (!hasQuantity) return 'quantity';
   if (
@@ -110,6 +111,7 @@ const getDialogStep = (data: OrderApiResponse | null): DialogStep => {
 
 const STEP_TITLE: Record<DialogStep, string> = {
   menu: '메뉴 선택',
+  recommend: '메뉴 추천',
   quantity: '수량 선택',
   option: '옵션 선택',
   confirm: '주문 확인',
@@ -208,6 +210,7 @@ export const VoiceOrderPage = () => {
   const hasManyReplies = quickReplies.length >= 4;
   const hasDenseReplies = quickReplies.length >= 5;
   const hasCrowdedReplies = quickReplies.length >= 6;
+  const isRecommendationInputStep = mode === 'order-dialog' && lastResponse?.intent === 'RECOMMEND_INPUT';
   const responseGuideText = lastResponse?.response
     ? `${lastResponse.response}${
         dialogStep === 'quantity' ? ' 수량 먼저 고르신 후 뒤에 옵션 커스텀 도와드릴게요.' : ''
@@ -346,6 +349,25 @@ export const VoiceOrderPage = () => {
     }
   };
 
+  const showRecommendationInput = () => {
+    if (isSubmitting) return;
+
+    pushCurrentView();
+    setSessionId(null);
+    setMode('order-dialog');
+    setLastResponse({
+      intent: 'RECOMMEND_INPUT',
+      quickReplies: [],
+      response: '추천받고 싶은 취향을 말씀해 주세요.',
+      slots: {
+        menu: null,
+        optionSlots: [],
+        quantity: null,
+      },
+      slotsComplete: false,
+    });
+  };
+
   // ── 주문 완료 이동 ───────────────────────────────────────────────────────────
   // ── 이전 화면 기록/복원 ─────────────────────────────────────────────────────
   const pushCurrentView = () => {
@@ -470,6 +492,10 @@ export const VoiceOrderPage = () => {
         showMenuBoard();
         return;
       }
+      if (action.label === '메뉴 추천') {
+        showRecommendationInput();
+        return;
+      }
       if (action.label === '즉시 주문') {
         setSessionId(null);
         handleMicClick();
@@ -511,6 +537,10 @@ export const VoiceOrderPage = () => {
       const normalized = normalizeOrderText(transcript);
       if (mode === 'home' && normalized.includes('메뉴판')) {
         showMenuBoard();
+        return;
+      }
+      if (isRecommendationInputStep) {
+        showRecommendations(normalized);
         return;
       }
       if (mode === 'home') {
@@ -561,7 +591,7 @@ export const VoiceOrderPage = () => {
           <AppHeader onBack={goBack} subtitle={menuCache?.restaurantName ?? '메뉴판'} />
 
           <p ref={responseGuideRef} tabIndex={-1} className="sr-only">
-            {`${menuCache?.restaurantName ?? '메뉴판'} 메뉴판입니다. 메뉴를 선택해 주세요.`}
+            {`${menuCache?.restaurantName ?? '메뉴판'} 메뉴판입니다. 아래 메뉴들을 스와이프하여 손으로 확인하신 후 메뉴를 선택해 주세요.`}
           </p>
 
           <VoiceControls
@@ -639,6 +669,26 @@ export const VoiceOrderPage = () => {
             micRef={micButtonRef}
             onMicClick={handleMicClick}
           />
+
+          {isRecommendationInputStep && (
+            <div className="mt-5 rounded-xl bg-white/95 px-5 py-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
+              <p className="text-center text-lg font-black text-slate-500">이렇게 말할 수 있어요</p>
+              <div className="mt-4 grid gap-2">
+                {['달달한 거 추천해줘', '시원한 음료 마시고 싶어', '커피 없는 메뉴 알려줘'].map((example) => (
+                  <p
+                    key={example}
+                    className="rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3 text-left text-lg font-black text-slate-950"
+                  >
+                    {example}
+                  </p>
+                ))}
+              </div>
+              <p className="mt-5 rounded-lg bg-slate-50 px-4 py-3 text-center text-lg font-black leading-snug text-slate-700">
+                상단 마이크를 켜고<br />
+                취향을 말씀해 주세요.
+              </p>
+            </div>
+          )}
 
           {/* 수량 단계 전용: +/- 카운터 UI */}
           {dialogStep === 'quantity' && !isReplyLocked && (
@@ -875,18 +925,31 @@ export const VoiceOrderPage = () => {
           <div className="grid w-full gap-4 pb-16">
           {HOME_ACTIONS.map((action) => {
             const Icon = action.icon;
+            const isImmediateOrderListening = action.label === '즉시 주문' && isListening;
             return (
               <button
                 key={action.label}
                 type="button"
                 onClick={() => handleHomeAction(action)}
                 aria-label={`${action.label}. ${action.description}`}
-                className="flex min-h-24 items-center gap-4 rounded-xl bg-slate-950 px-6 text-left text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+                className={`relative flex min-h-24 items-center gap-4 overflow-hidden rounded-xl px-6 text-left shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
+                  isImmediateOrderListening
+                    ? 'bg-rose-100 text-rose-700'
+                    : 'bg-slate-950 text-white'
+                }`}
               >
+                {isImmediateOrderListening && (
+                  <span className="absolute inset-0 bg-rose-300 opacity-20 animate-pulse" aria-hidden="true" />
+                )}
                 <Icon aria-hidden="true" className="shrink-0" size={32} />
-                <span>
+                <span className="relative">
                   <span className="block text-[1.65rem] font-black leading-tight">{action.label}</span>
-                  <span aria-hidden="true" className="mt-1 block text-sm font-bold text-slate-300">
+                  <span
+                    aria-hidden="true"
+                    className={`mt-1 block text-sm font-bold ${
+                      isImmediateOrderListening ? 'text-rose-700/80' : 'text-slate-300'
+                    }`}
+                  >
                     {action.description}
                   </span>
                 </span>
