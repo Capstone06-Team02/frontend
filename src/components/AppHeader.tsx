@@ -24,7 +24,7 @@ export const AppHeader = ({
   const subtitleClass = isContrast ? 'text-yellow-200' : isLight ? 'text-sky-700' : 'text-slate-500';
 
   return (
-    <div className="mb-4 grid grid-cols-[3rem_1fr_3rem] items-start gap-3">
+    <div className="voisk-app-header mb-4 grid grid-cols-[3rem_1fr_3rem] items-start gap-3">
       {hideBack ? (
         <div aria-hidden="true" className="h-12 w-12" />
       ) : (
@@ -32,7 +32,7 @@ export const AppHeader = ({
           type="button"
           onClick={onBack}
           aria-label="이전 화면으로 이동"
-          className={`flex h-12 w-12 items-center justify-center rounded-xl bg-transparent focus:outline-none focus:ring-4 ${buttonClass}`}
+          className={`voisk-back-button flex h-12 w-12 items-center justify-center rounded-xl bg-transparent focus:outline-none focus:ring-4 ${buttonClass}`}
         >
           <ChevronLeft aria-hidden="true" size={34} strokeWidth={3} />
         </button>

@@ -45,7 +45,7 @@ export const CompletePage = ({
 
   return (
     <div className="voisk-screen-bg text-slate-950">
-      <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-6 pt-[max(24px,env(safe-area-inset-top))]">
+      <div className="voisk-app-shell mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-6 pt-[max(24px,env(safe-area-inset-top))]">
 
         <AppHeader
           onBack={() => { window.history.back(); }}
@@ -57,12 +57,12 @@ export const CompletePage = ({
         </p>
 
         {onMicClick && (
-          <div className="mb-4 grid grid-cols-2 gap-3">
+          <div className="voisk-voice-controls mb-4 grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={onMicClick}
               aria-label="마이크"
-              className={`flex min-h-14 items-center justify-center gap-2 rounded-xl px-4 text-xl font-black shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
+              className={`voisk-top-action-button flex min-h-14 items-center justify-center gap-2 rounded-xl px-4 text-xl font-black shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
                 isListening ? 'bg-rose-100 text-rose-700' : 'bg-blue-700 text-white'
               }`}
             >
@@ -73,7 +73,7 @@ export const CompletePage = ({
               type="button"
               onClick={replayGuide}
               aria-label="다시 듣기"
-              className="flex min-h-14 items-center justify-center rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+              className="voisk-top-action-button flex min-h-14 items-center justify-center rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
             >
               다시 듣기
             </button>

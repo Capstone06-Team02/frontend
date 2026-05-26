@@ -138,14 +138,14 @@ const VoiceControls = ({ disabled = false, guideRef, isListening, micRef, onMicC
   };
 
   return (
-    <div className="mb-4 grid grid-cols-2 gap-3">
+    <div className="voisk-voice-controls mb-4 grid grid-cols-2 gap-3">
       <button
         ref={micRef}
         type="button"
         onClick={onMicClick}
         disabled={disabled}
         aria-label="마이크"
-        className={`flex min-h-14 items-center justify-center gap-2 rounded-xl px-4 text-xl font-black shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
+        className={`voisk-top-action-button flex min-h-14 items-center justify-center gap-2 rounded-xl px-4 text-xl font-black shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
           isListening
             ? 'bg-rose-100 text-rose-700'
             : 'bg-blue-700 text-white'
@@ -158,7 +158,7 @@ const VoiceControls = ({ disabled = false, guideRef, isListening, micRef, onMicC
         type="button"
         onClick={replayGuide}
         aria-label="다시 듣기"
-        className="flex min-h-14 items-center justify-center rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+        className="voisk-top-action-button flex min-h-14 items-center justify-center rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
       >
         다시 듣기
       </button>
@@ -556,7 +556,7 @@ export const VoiceOrderPage = () => {
   if (mode === 'menu-board') {
     return (
       <div className="voisk-screen-bg text-slate-950">
-        <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
+        <div className="voisk-app-shell mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
 
           <AppHeader onBack={goBack} subtitle={menuCache?.restaurantName ?? '메뉴판'} />
 
@@ -573,25 +573,25 @@ export const VoiceOrderPage = () => {
           />
 
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <div className="grid gap-4">
+            <div className="voisk-menu-groups grid gap-4">
               {groupedMenus.map(([categoryName, menus]) => (
                 <div key={categoryName}>
-                  <p aria-hidden="true" className="mb-1.5 text-sm font-black text-blue-700">
+                  <p aria-hidden="true" className="voisk-category-label mb-1.5 text-sm font-black text-blue-700">
                     {categoryName}
                   </p>
-                  <div className="grid gap-2">
+                  <div className="voisk-menu-items grid gap-2">
                     {menus.map((menu) => (
                       <button
                         key={menu.menuId}
                         type="button"
                         onClick={() => handleMenuSelect(menu)}
                         aria-label={`${menu.name} ${formatPrice(menu.price)}`}
-                        className="rounded-lg bg-white/95 px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+                        className="voisk-menu-card rounded-lg bg-white/95 px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300"
                       >
-                        <span className="block text-xl font-black leading-tight text-slate-950">
+                        <span className="voisk-menu-name block text-xl font-black leading-tight text-slate-950">
                           {menu.name}
                         </span>
-                        <span aria-hidden="true" className="mt-1 block text-sm font-bold text-slate-500">
+                        <span aria-hidden="true" className="voisk-menu-price mt-1 block text-sm font-bold text-slate-500">
                           {formatPrice(menu.price)}
                         </span>
                       </button>
@@ -612,7 +612,7 @@ export const VoiceOrderPage = () => {
   if (mode === 'order-dialog') {
     return (
       <div className="voisk-screen-bg select-none text-slate-950">
-        <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
+        <div className="voisk-app-shell mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
 
           <AppHeader onBack={goBack} subtitle={STEP_TITLE[dialogStep]} />
 
@@ -642,9 +642,9 @@ export const VoiceOrderPage = () => {
 
           {/* 수량 단계 전용: +/- 카운터 UI */}
           {dialogStep === 'quantity' && !isReplyLocked && (
-            <div className="mt-5">
+            <div className="voisk-quantity-block mt-5">
               <div
-                className="flex items-center justify-between gap-3 rounded-xl bg-white/95 px-4 py-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
+                className="voisk-quantity-control flex items-center justify-between gap-3 rounded-xl bg-white/95 px-4 py-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
                 aria-label={`현재 수량 ${quantityDraft}개`}
               >
                 <button
@@ -653,13 +653,13 @@ export const VoiceOrderPage = () => {
                   onFocus={() => speak(`수량 빼기 버튼, 현재 ${quantityDraft}개`)}
                   disabled={quantityDraft <= QUANTITY_MIN || isSubmitting}
                   aria-label={`수량 빼기 현재 ${quantityDraft}개`}
-                  className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-950 text-5xl font-black text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none active:scale-[0.95]"
+                  className="voisk-quantity-button flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-950 text-5xl font-black text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none active:scale-[0.95]"
                 >
                   −
                 </button>
                 <p
                   aria-hidden="true"
-                  className="flex-1 text-center text-6xl font-black text-slate-950"
+                  className="voisk-quantity-number flex-1 text-center text-6xl font-black text-slate-950"
                 >
                   {quantityDraft}
                   <span className="ml-1 text-3xl">개</span>
@@ -670,7 +670,7 @@ export const VoiceOrderPage = () => {
                   onFocus={() => speak(`수량 더하기 버튼, 현재 ${quantityDraft}개`)}
                   disabled={quantityDraft >= QUANTITY_MAX || isSubmitting}
                   aria-label={`수량 더하기 현재 ${quantityDraft}개`}
-                  className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-950 text-5xl font-black text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none active:scale-[0.95]"
+                  className="voisk-quantity-button flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-950 text-5xl font-black text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none active:scale-[0.95]"
                 >
                   +
                 </button>
@@ -706,7 +706,7 @@ export const VoiceOrderPage = () => {
                       .filter(Boolean)
                       .join(', ')
               }
-              className={`rounded-xl bg-white/95 px-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-300 ${
+              className={`voisk-selection-card rounded-xl bg-white/95 px-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-300 ${
                 dialogStep === 'quantity'
                   ? 'mt-3 py-4'
                   : hasCrowdedReplies && dialogStep === 'option'
@@ -774,14 +774,14 @@ export const VoiceOrderPage = () => {
 
           {/* 수량 단계 전용: 확인 버튼 */}
           {dialogStep === 'quantity' && !isReplyLocked && (
-            <div className="mt-3">
+            <div className="voisk-confirm-block mt-3">
               <button
                 type="button"
                 onClick={confirmQuantity}
                 onFocus={() => speak(`확인 버튼. ${quantityDraft}개로 주문을 계속합니다`)}
                 disabled={isSubmitting}
                 aria-label="확인"
-                className="min-h-20 w-full rounded-xl bg-blue-700 px-5 text-2xl font-black text-white shadow-[0_16px_38px_rgba(29,78,216,0.3)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+                className="voisk-confirm-button min-h-20 w-full rounded-xl bg-blue-700 px-5 text-2xl font-black text-white shadow-[0_16px_38px_rgba(29,78,216,0.3)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
               >
                 확인
               </button>
@@ -792,7 +792,7 @@ export const VoiceOrderPage = () => {
           {dialogStep !== 'quantity' && (
             <>
               <div
-                className={`grid min-h-0 content-start overflow-hidden ${
+                className={`voisk-reply-list grid min-h-0 content-start overflow-hidden ${
                   dialogStep === 'menu'
                     ? 'mt-5 gap-3'
                     : hasCrowdedReplies
@@ -826,7 +826,7 @@ export const VoiceOrderPage = () => {
                     onClick={(event) => submitOrderText(event.currentTarget.value, sessionId, { preserveInput: true })}
                     disabled={isSubmitting}
                     aria-label={getQuickReplyVoiceOverLabel(reply)}
-                    className={`rounded-xl bg-slate-950 px-5 text-left font-black leading-tight text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
+                    className={`voisk-reply-button rounded-xl bg-slate-950 px-5 text-left font-black leading-tight text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
                       hasDenseReplies
                         ? hasCrowdedReplies
                           ? 'min-h-12 text-lg'
@@ -854,7 +854,7 @@ export const VoiceOrderPage = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="voisk-screen-bg select-none text-slate-950">
-      <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
+      <div className="voisk-app-shell mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
 
         <AppHeader hideBack />
 
@@ -871,8 +871,8 @@ export const VoiceOrderPage = () => {
         </div>
         */}
 
-        <div className="flex flex-1 items-center">
-          <div className="grid w-full gap-4 pb-16">
+        <div className="voisk-home-wrap flex flex-1 items-center">
+          <div className="voisk-home-actions grid w-full gap-4 pb-16">
           {HOME_ACTIONS.map((action) => {
             const Icon = action.icon;
             return (
@@ -881,12 +881,12 @@ export const VoiceOrderPage = () => {
                 type="button"
                 onClick={() => handleHomeAction(action)}
                 aria-label={`${action.label}. ${action.description}`}
-                className="flex min-h-24 items-center gap-4 rounded-xl bg-slate-950 px-6 text-left text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+                className="voisk-home-card flex min-h-24 items-center gap-4 rounded-xl bg-slate-950 px-6 text-left text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
               >
                 <Icon aria-hidden="true" className="shrink-0" size={32} />
                 <span>
-                  <span className="block text-[1.65rem] font-black leading-tight">{action.label}</span>
-                  <span aria-hidden="true" className="mt-1 block text-sm font-bold text-slate-300">
+                  <span className="voisk-home-card-title block text-[1.65rem] font-black leading-tight">{action.label}</span>
+                  <span aria-hidden="true" className="voisk-home-card-desc mt-1 block text-sm font-bold text-slate-300">
                     {action.description}
                   </span>
                 </span>
