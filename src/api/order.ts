@@ -11,7 +11,7 @@ export const cacheRestaurantMenus = async (
   restaurantId = DEFAULT_RESTAURANT_ID,
 ): Promise<MenuCacheResponse> => {
   const response = await apiClient.post<MenuCacheResponse>(
-    `/api/order/stores/${restaurantId}/menus/cache`,
+    `/api/order/restaurants/${restaurantId}/menus/cache`,
   );
   return response.data;
 };
@@ -21,11 +21,16 @@ export const sendOrderText = async (
   sessionId: string | null,
   restaurantId = DEFAULT_RESTAURANT_ID,
 ): Promise<OrderApiResponse> => {
-  const response = await apiClient.post<OrderApiResponse>('/api/order/speak', {
+  const payload: { input: string; restaurantId: number; sessionId?: string } = {
     input: text,
     restaurantId,
-    sessionId,
-  });
+  };
+
+  if (sessionId) {
+    payload.sessionId = sessionId;
+  }
+
+  const response = await apiClient.post<OrderApiResponse>('/api/order/speak', payload);
   return response.data;
 };
 

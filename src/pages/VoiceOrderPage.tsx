@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { BookOpen, Coffee, Lightbulb, Mic } from 'lucide-react';
+import { BookOpen, CircleHelp, Coffee, Lightbulb, Mic } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { CompletePage } from './CompletePage';
 import {
@@ -41,6 +41,13 @@ type HomeAction = {
 };
 
 const RESTAURANT_ID = getDefaultRestaurantId();
+const RESTAURANT_DISPLAY_NAME = '중앙대 카페';
+const MENU_SELECT_DELAY_MS = 1100;
+const HOME_INTRO_GUIDE = `음성으로 주문이 가능한 Voisk입니다.
+음성 주문 사용법을 들으시려면 오른쪽으로 한 번 스와이프 후 탭 해주세요. 첫 사용이라면 듣기를 추천드려요.
+바로 주문하시려면 두 번 스와이프 후 원하시는 기능 3가지 중 하나를 선택해주세요.`;
+const HOME_USAGE_GUIDE =
+  '음성 주문은 마이크 권한 허용이 필요해요. 마이크 버튼은 항상 좌측 상단에 배치해놨어요. 처음 허용할 때만 약 3초 뒤에 말씀해 주세요. 두번째 사용부턴 바로 말씀하셔도 돼요. 그리고 마이크를 키거나 끌 때는 두번 탭하시면 됩니다.';
 
 const HOME_ACTIONS: HomeAction[] = [
   {
@@ -65,6 +72,37 @@ const HOME_ACTIONS: HomeAction[] = [
 
 const getReplies = (data: OrderApiResponse | null) => data?.quickReplies?.filter(Boolean) ?? [];
 
+const getPrimaryOrderItem = (data: OrderApiResponse | null) => data?.slots?.items?.[0] ?? null;
+
+const getSlotMenu = (data: OrderApiResponse | null) =>
+  getPrimaryOrderItem(data)?.menu ?? data?.slots?.menu ?? null;
+
+const getSlotQuantity = (data: OrderApiResponse | null) =>
+  getPrimaryOrderItem(data)?.quantity ?? data?.slots?.quantity ?? null;
+
+const getSlotOptionSlots = (data: OrderApiResponse | null) =>
+  getPrimaryOrderItem(data)?.optionSlots ?? data?.slots?.optionSlots ?? [];
+
+const getSlotTotalPrice = (data: OrderApiResponse | null) =>
+  getPrimaryOrderItem(data)?.totalPrice ?? data?.price?.totalPrice ?? null;
+
+const getSlotMenuPrice = (data: OrderApiResponse | null) =>
+  getPrimaryOrderItem(data)?.menuPrice ?? data?.price?.menuPrice ?? null;
+
+const getSlotUnitPrice = (data: OrderApiResponse | null) =>
+  getPrimaryOrderItem(data)?.unitPrice ?? data?.price?.unitPrice ?? null;
+
+const getSelectedOptionValue = (slot: NonNullable<ReturnType<typeof getSlotOptionSlots>>[number]) => {
+  const selectedCandidates = slot.candidates
+    ?.filter((candidate) => candidate.selected)
+    .map((candidate) =>
+      candidate.defaultQuantity && candidate.defaultQuantity > 1
+        ? `${candidate.name} ${candidate.defaultQuantity}개`
+        : candidate.name,
+    ) ?? [];
+  return slot.selectedOption ?? (selectedCandidates.length > 0 ? selectedCandidates.join(', ') : slot.selected);
+};
+
 const getQuickReplyVoiceOverLabel = (reply: string) => {
   if (reply === '핫') return '뜨겁게';
   if (reply === '아이스') return '차갑게';
@@ -86,9 +124,9 @@ const isFinalCompleteResponse = (data: OrderApiResponse) => {
 const getDialogStep = (data: OrderApiResponse | null): DialogStep => {
   const replies = getReplies(data);
   const response = data?.response ?? '';
-  const hasMenu = Boolean(data?.slots?.menu);
-  const hasQuantity = Boolean(data?.slots?.quantity);
-  const hasOptionSlots = Boolean(data?.slots?.optionSlots?.length);
+  const hasMenu = Boolean(getSlotMenu(data));
+  const hasQuantity = getSlotQuantity(data) != null;
+  const hasOptionSlots = getSlotOptionSlots(data).length > 0;
   const onlyConfirmReplies =
     replies.length > 0 &&
     replies.every((reply) => ['네', '아니요', '아니오', '맞습니다', '확인'].includes(reply));
@@ -120,16 +158,9 @@ const STEP_TITLE: Record<DialogStep, string> = {
 };
 
 const getSelectedOptionLabels = (data: OrderApiResponse | null) =>
-  data?.slots?.optionSlots
+  getSlotOptionSlots(data)
     ?.map((slot) => {
-      const selectedCandidates = slot.candidates
-        ?.filter((candidate) => candidate.selected)
-        .map((candidate) =>
-          candidate.defaultQuantity && candidate.defaultQuantity > 1
-            ? `${candidate.name} ${candidate.defaultQuantity}개`
-            : candidate.name,
-        ) ?? [];
-      const selected = selectedCandidates.length > 0 ? selectedCandidates.join(', ') : slot.selected;
+      const selected = getSelectedOptionValue(slot);
       return selected ? `${slot.name} ${selected}` : null;
     })
     .filter(Boolean) ?? [];
@@ -175,12 +206,15 @@ export const VoiceOrderPage = () => {
   const [lastResponse, setLastResponse] = useState<OrderApiResponse | null>(null);
   const [completeResponse, setCompleteResponse] = useState<OrderApiResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMenuSelectPending, setIsMenuSelectPending] = useState(false);
   const [isReplyLocked, setIsReplyLocked] = useState(false);
+  const [homeUsageAnnouncement, setHomeUsageAnnouncement] = useState('');
   // const [micAnnouncement, setMicAnnouncement] = useState('');
   // 수량 단계 카운터: 사용자가 +/- 로 조정 중인 임시 값. 확인 누르면 백엔드 전송.
   const [quantityDraft, setQuantityDraft] = useState(1);
 
   const unlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const menuSelectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasInitializedMicRef = useRef(false);   // 마이크 권한 최초 요청 여부
   const micInitializedRef = useRef(false);       // announcement 활성화 여부
   const firstReplyRef = useRef<HTMLButtonElement>(null);
@@ -191,6 +225,12 @@ export const VoiceOrderPage = () => {
   const viewHistoryRef = useRef<ViewSnapshot[]>([]);
 
   const { isListening, speak, startToggleListening, stopToggleListening } = useVoice();
+
+  useEffect(() => {
+    return () => {
+      if (menuSelectTimerRef.current) clearTimeout(menuSelectTimerRef.current);
+    };
+  }, []);
 
   // ── 마이크 상태 announcement: 실제로 켜진/꺼진 후에만 읽힘 ──────────────────
   useEffect(() => {
@@ -204,9 +244,9 @@ export const VoiceOrderPage = () => {
   // ── 수량 선택 화면: 메뉴명 카드에 포커스 ────────────────────────────────────
   const dialogStep = getDialogStep(lastResponse);
   const quickReplies = lastResponse?.quickReplies?.filter(Boolean) ?? [];
-  const selectedMenu = lastResponse?.slots?.menu;
-  const selectedQuantity = lastResponse?.slots?.quantity;
-  const totalPrice = lastResponse?.price?.totalPrice;
+  const selectedMenu = getSlotMenu(lastResponse);
+  const selectedQuantity = getSlotQuantity(lastResponse);
+  const totalPrice = getSlotTotalPrice(lastResponse);
   const hasManyReplies = quickReplies.length >= 4;
   const hasDenseReplies = quickReplies.length >= 5;
   const hasCrowdedReplies = quickReplies.length >= 6;
@@ -242,19 +282,19 @@ export const VoiceOrderPage = () => {
 
   useEffect(() => {
     if (mode !== 'order-dialog' || !lastResponse?.response) return;
-    const timer = setTimeout(() => responseGuideRef.current?.focus(), 350);
+    const timer = setTimeout(() => responseGuideRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [mode, lastResponse?.response]);
 
   useEffect(() => {
     if (mode !== 'menu-board' || !menuCache) return;
-    const timer = setTimeout(() => responseGuideRef.current?.focus(), 350);
+    const timer = setTimeout(() => responseGuideRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [mode, menuCache]);
 
   useEffect(() => {
     if (mode !== 'home') return;
-    const timer = setTimeout(() => homeGuideRef.current?.focus(), 350);
+    const timer = setTimeout(() => homeGuideRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [mode]);
 
@@ -273,10 +313,7 @@ export const VoiceOrderPage = () => {
 
   /** 현재 메뉴의 1잔당 가격을 백엔드 응답에서 추출 */
   const getMenuUnitPrice = (): number | null => {
-    const price = lastResponse?.price;
-    if (!price) return null;
-    // 옵션 선택 전이므로 menuPrice 우선, 없으면 unitPrice
-    return price.menuPrice ?? price.unitPrice ?? null;
+    return getSlotMenuPrice(lastResponse) ?? getSlotUnitPrice(lastResponse);
   };
 
   const decrementQuantity = () => {
@@ -384,16 +421,20 @@ export const VoiceOrderPage = () => {
   };
 
   const goHome = () => {
+    if (menuSelectTimerRef.current) clearTimeout(menuSelectTimerRef.current);
     viewHistoryRef.current = [];
     setMode('home');
     setLastResponse(null);
     setCompleteResponse(null);
     setSessionId(null);
+    setIsMenuSelectPending(false);
   };
 
   const goBack = () => {
     if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
+    if (menuSelectTimerRef.current) clearTimeout(menuSelectTimerRef.current);
     if (isListening) stopToggleListening();
+    setIsMenuSelectPending(false);
 
     const previous = viewHistoryRef.current.pop();
     if (!previous) {
@@ -473,11 +514,11 @@ export const VoiceOrderPage = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const data = await ensureMenuCache();
+      await ensureMenuCache();
       pushCurrentView();
       setMode('menu-board');
       setLastResponse(null);
-      speak(`${data.restaurantName}의 주문 가능한 메뉴를 보여드릴게요.`);
+      speak(`${RESTAURANT_DISPLAY_NAME}의 주문 가능한 메뉴를 보여드릴게요.`);
     } catch {
       speak('메뉴판을 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -508,8 +549,20 @@ export const VoiceOrderPage = () => {
 
   // ── 메뉴판에서 메뉴 선택 ─────────────────────────────────────────────────────
   const handleMenuSelect = (menu: MenuInfo) => {
+    if (isMenuSelectPending || isSubmitting) return;
+    if (menuSelectTimerRef.current) clearTimeout(menuSelectTimerRef.current);
+
     setSessionId(null);
-    submitOrderText(menu.name, null, { preserveInput: true });
+    setIsMenuSelectPending(true);
+    menuSelectTimerRef.current = setTimeout(() => {
+      setIsMenuSelectPending(false);
+      submitOrderText(menu.name, null, { preserveInput: true });
+    }, MENU_SELECT_DELAY_MS);
+  };
+
+  const announceHomeUsageGuide = () => {
+    setHomeUsageAnnouncement('');
+    window.setTimeout(() => setHomeUsageAnnouncement(HOME_USAGE_GUIDE), 50);
   };
 
   // ── 마이크 토글 ──────────────────────────────────────────────────────────────
@@ -588,14 +641,14 @@ export const VoiceOrderPage = () => {
       <div className="voisk-screen-bg text-slate-950">
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
 
-          <AppHeader onBack={goBack} subtitle={menuCache?.restaurantName ?? '메뉴판'} />
+          <AppHeader onBack={goBack} subtitle={RESTAURANT_DISPLAY_NAME} />
 
           <p ref={responseGuideRef} tabIndex={-1} className="sr-only">
-            {`${menuCache?.restaurantName ?? '메뉴판'} 메뉴판입니다. 아래 메뉴들을 스와이프하여 손으로 확인하신 후 메뉴를 선택해 주세요.`}
+            {`${RESTAURANT_DISPLAY_NAME} 메뉴판입니다. 아래 메뉴들을 스와이프하여 손으로 확인하신 후 메뉴를 선택해 주세요.`}
           </p>
 
           <VoiceControls
-            disabled={isSubmitting}
+            disabled={isSubmitting || isMenuSelectPending}
             guideRef={responseGuideRef}
             isListening={isListening}
             micRef={micButtonRef}
@@ -615,8 +668,9 @@ export const VoiceOrderPage = () => {
                         key={menu.menuId}
                         type="button"
                         onClick={() => handleMenuSelect(menu)}
+                        disabled={isSubmitting || isMenuSelectPending}
                         aria-label={`${menu.name} ${formatPrice(menu.price)}`}
-                        className="rounded-lg bg-white/95 px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+                        className="rounded-lg bg-white/95 px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-70"
                       >
                         <span className="block text-xl font-black leading-tight text-slate-950">
                           {menu.name}
@@ -655,7 +709,7 @@ export const VoiceOrderPage = () => {
           {responseGuideText && (
             <p
               ref={responseGuideRef}
-              tabIndex={-1}
+              tabIndex={isRecommendationInputStep ? 0 : -1}
               className="sr-only"
             >
               {responseGuideText}
@@ -683,10 +737,16 @@ export const VoiceOrderPage = () => {
                   </p>
                 ))}
               </div>
-              <p className="mt-5 rounded-lg bg-slate-50 px-4 py-3 text-center text-lg font-black leading-snug text-slate-700">
-                상단 마이크를 켜고<br />
-                취향을 말씀해 주세요.
-              </p>
+              <button
+                type="button"
+                onClick={() => micButtonRef.current?.focus()}
+                disabled={isSubmitting}
+                aria-label="상단 마이크로 이동"
+                className="mt-5 flex min-h-16 w-full items-center justify-center gap-3 rounded-xl bg-blue-50 px-4 text-xl font-black text-blue-700 shadow-[0_12px_28px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+              >
+                <Mic aria-hidden="true" size={26} />
+                상단 마이크로 이동
+              </button>
             </div>
           )}
 
@@ -703,16 +763,16 @@ export const VoiceOrderPage = () => {
                   onFocus={() => speak(`수량 빼기 버튼, 현재 ${quantityDraft}개`)}
                   disabled={quantityDraft <= QUANTITY_MIN || isSubmitting}
                   aria-label={`수량 빼기 현재 ${quantityDraft}개`}
-                  className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-950 text-5xl font-black text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none active:scale-[0.95]"
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-950 text-4xl font-black text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none active:scale-[0.95]"
                 >
                   −
                 </button>
                 <p
                   aria-hidden="true"
-                  className="flex-1 text-center text-6xl font-black text-slate-950"
+                  className="flex-1 text-center text-5xl font-black text-slate-950"
                 >
                   {quantityDraft}
-                  <span className="ml-1 text-3xl">개</span>
+                  <span className="ml-1 text-2xl">개</span>
                 </p>
                 <button
                   type="button"
@@ -720,7 +780,7 @@ export const VoiceOrderPage = () => {
                   onFocus={() => speak(`수량 더하기 버튼, 현재 ${quantityDraft}개`)}
                   disabled={quantityDraft >= QUANTITY_MAX || isSubmitting}
                   aria-label={`수량 더하기 현재 ${quantityDraft}개`}
-                  className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-950 text-5xl font-black text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none active:scale-[0.95]"
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-950 text-4xl font-black text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none active:scale-[0.95]"
                 >
                   +
                 </button>
@@ -909,11 +969,11 @@ export const VoiceOrderPage = () => {
         <AppHeader hideBack />
 
         <p ref={homeGuideRef} tabIndex={-1} className="sr-only">
-          Voisk입니다. 이 화면에는 메뉴판, 메뉴 추천, 즉시 주문 버튼이 있습니다.
-          이 화면을 제외한 모든 화면의 좌측 상단에는 음성으로 주문하실 수 있는 마이크 기능이 있습니다. 우측 상단에는 다시 듣기 기능이 있습니다.
-          마이크 버튼을 두 번 탭하시면 마이크가 켜지고 원하는 내용을 말씀하신 후 다시 두 번 탭하면 마이크가 꺼집니다.
-          
+          {HOME_INTRO_GUIDE}
         </p>
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {homeUsageAnnouncement}
+        </div>
 
         {/* VoiceOver 확인 중: 마이크 켜짐/꺼짐 안내 일시 중지
         <div aria-live="polite" aria-atomic="true" className="sr-only">
@@ -923,6 +983,20 @@ export const VoiceOrderPage = () => {
 
         <div className="flex flex-1 items-center">
           <div className="grid w-full gap-4 pb-16">
+            <button
+              type="button"
+              onClick={announceHomeUsageGuide}
+              aria-label="마이크 사용법"
+              className="relative flex min-h-20 items-center gap-4 overflow-hidden rounded-xl border-2 border-blue-100 bg-white/95 px-6 text-left text-blue-700 shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+            >
+              <CircleHelp aria-hidden="true" className="shrink-0" size={32} />
+              <span className="relative">
+                <span className="block text-[1.45rem] font-black leading-tight">마이크 사용법</span>
+                <span aria-hidden="true" className="mt-1 block text-sm font-bold text-slate-500">
+                  처음 이용하시면 먼저 들어보세요.
+                </span>
+              </span>
+            </button>
           {HOME_ACTIONS.map((action) => {
             const Icon = action.icon;
             const isImmediateOrderListening = action.label === '즉시 주문' && isListening;

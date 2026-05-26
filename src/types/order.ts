@@ -9,6 +9,7 @@ export type OrderApiResponse = {
   } | null;
   response?: string;
   slots?: {
+    items?: OrderItem[];
     menu?: string | null;
     optionSlots?: OptionSlot[];
     quantity?: number | null;
@@ -32,6 +33,7 @@ export type OptionCandidate = {
 
 export type OptionSlot = {
   candidates?: OptionCandidate[];
+  defaultSelected?: boolean | null;
   maxSelect?: number;
   minSelect?: number;
   name?: string;
@@ -39,6 +41,17 @@ export type OptionSlot = {
   parentOptionItemId?: number | null;
   required?: boolean;
   selected?: string | null;
+  selectedOption?: string | null;
+};
+
+export type OrderItem = {
+  menu?: string | null;
+  menuPrice?: number;
+  optionExtraPrice?: number;
+  optionSlots?: OptionSlot[];
+  quantity?: number | null;
+  totalPrice?: number;
+  unitPrice?: number;
 };
 
 export type CategoryInfo = {
