@@ -4,18 +4,27 @@ import { AppHeader } from '../components/AppHeader';
 import { CompletePage } from './CompletePage';
 import {
   cacheRestaurantMenus,
+  fetchMenuOptionalOptions,
+  fetchRecommendHints,
   fetchRecommendations,
+  fetchRecommendationsByHint,
+  fetchRequiredOptionSummary,
   getDefaultRestaurantId,
+  selectOrderOption,
   sendOrderText,
 } from '../api/order';
 import { useVoice } from '../hooks/useVoice';
 import type {
   MenuCacheResponse,
+  MenuOptionalOptionsResponse,
   MenuInfo,
   OptionGroupInfo,
   OptionSlot,
+  OrderOptionSelectionResponse,
   OrderApiResponse,
+  RecommendHint,
   RecommendationInfo,
+  RequiredOptionSummaryResponse,
 } from '../types/order';
 import { wantsRecommendation } from '../utils/cafeOrder';
 import { formatPrice } from '../utils/format';
@@ -52,7 +61,6 @@ const HOME_INTRO_GUIDE = `음성으로 주문이 가능한 Voisk입니다.
 바로 주문하시려면 두 번 스와이프 후 원하시는 기능 3가지 중 하나를 선택해주세요.`;
 const HOME_USAGE_GUIDE =
   '이제 마이크 대신 입력창을 사용합니다. 입력창에서 휴대폰 기본 받아쓰기 버튼을 누르면 음성으로 입력할 수 있어요. 메뉴를 직접 입력하거나 예시 문장을 선택한 뒤 전송하면 됩니다.';
-const RECOMMEND_EXAMPLES = ['시원한 거 먹고 싶어', '달달한 거 먹고 싶어', '커피 없는 메뉴 알려줘'];
 
 const HOME_ACTIONS: HomeAction[] = [
   {
@@ -103,14 +111,6 @@ const getSelectedOptionValue = (slot: OptionSlot) => {
   return slot.selectedOption ?? (selectedCandidates.length > 0 ? selectedCandidates.join(', ') : slot.selected);
 };
 
-const getSelectedOptionLabels = (data: OrderApiResponse | null) =>
-  getSlotOptionSlots(data)
-    .map((slot) => {
-      const selected = getSelectedOptionValue(slot);
-      return selected ? `${slot.name} ${selected}` : null;
-    })
-    .filter(Boolean) as string[];
-
 const isFinalCompleteResponse = (data: OrderApiResponse) => {
   const response = data.response ?? '';
   return (
@@ -157,6 +157,12 @@ const getOptionDescription = (group: OptionGroupInfo | OptionSlot) => {
   const choices = candidates?.map((candidate) => candidate.name).filter(Boolean) ?? [];
   if (choices.length === 0) return `${group.name ?? '옵션'} 옵션입니다.`;
   return `${group.name ?? '옵션'} 옵션은 ${choices.join(', ')} 중에서 선택할 수 있습니다.`;
+};
+
+const getOptionalOptionDescription = (group: MenuOptionalOptionsResponse['optionGroups'][number]) => {
+  const choices = group.optionItems.map((item) => item.optionItemName).filter(Boolean);
+  if (choices.length === 0) return `${group.optionGroupName} 옵션입니다.`;
+  return `${group.optionGroupName} 옵션은 ${choices.join(', ')} 중에서 선택할 수 있습니다.`;
 };
 
 const TextCommandBox = ({ disabled = false, label, onSubmit, placeholder }: TextCommandBoxProps) => {
@@ -207,6 +213,11 @@ export const VoiceOrderPage = () => {
   const [lastResponse, setLastResponse] = useState<OrderApiResponse | null>(null);
   const [completeResponse, setCompleteResponse] = useState<OrderApiResponse | null>(null);
   const [featuredMenus, setFeaturedMenus] = useState<RecommendationInfo[]>([]);
+  const [recommendHints, setRecommendHints] = useState<RecommendHint[]>([]);
+  const [recommendMenus, setRecommendMenus] = useState<RecommendationInfo[]>([]);
+  const [requiredSummary, setRequiredSummary] = useState<RequiredOptionSummaryResponse | null>(null);
+  const [optionalOptions, setOptionalOptions] = useState<MenuOptionalOptionsResponse | null>(null);
+  const [selectedOptionalOptions, setSelectedOptionalOptions] = useState<OrderOptionSelectionResponse[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [homeUsageAnnouncement, setHomeUsageAnnouncement] = useState('');
   const [orderDetailAnnouncement, setOrderDetailAnnouncement] = useState('');
@@ -223,15 +234,24 @@ export const VoiceOrderPage = () => {
   const selectedMenu = getSlotMenu(lastResponse);
   const selectedQuantity = getSlotQuantity(lastResponse);
   const totalPrice = getSlotTotalPrice(lastResponse);
-  const selectedOptionLabels = getSelectedOptionLabels(lastResponse);
   const currentMenu = findMenuByName(menuCache, selectedMenu);
+  const currentMenuId = currentMenu?.menuId ?? null;
   const requiredSlots = getSlotOptionSlots(lastResponse).filter((slot) => slot.required);
-  const optionalSlots = getSlotOptionSlots(lastResponse).filter((slot) => slot.required === false);
-  const optionalGroups = currentMenu?.optionGroups.filter((group) => !group.isRequired && group.isAvailable) ?? [];
-  const visibleOptionalOptions = optionalSlots.length > 0 ? optionalSlots : optionalGroups;
+  const selectedOptionalLabels = selectedOptionalOptions.map(
+    (option) => `${option.optionGroupName} ${option.selectedOptionItemName}`,
+  );
+  const optionExtraPrice = selectedOptionalOptions.reduce((sum, option) => sum + (option.extraPrice ?? 0), 0);
+  const displayTotalPrice = (requiredSummary?.unitPrice ?? totalPrice ?? getSlotUnitPrice(lastResponse) ?? 0) + optionExtraPrice;
+  const confirmGuideText = requiredSummary?.message
+    ? `${requiredSummary.message}${
+        selectedOptionalLabels.length > 0
+          ? ` 추가 옵션은 ${selectedOptionalLabels.join(', ')}입니다. 총 ${formatPrice(displayTotalPrice)}입니다.`
+          : ''
+      } 이대로 주문하시겠습니까?`
+    : `${selectedMenu ?? '선택한 메뉴'} ${selectedQuantity ?? 1}개, 총 ${formatPrice(displayTotalPrice)}입니다. 이대로 주문하시겠습니까?`;
   const responseGuideText =
     dialogStep === 'confirm' && selectedMenu
-      ? `${selectedMenu} ${selectedQuantity ?? 1}개, 총 ${formatPrice(totalPrice ?? getSlotUnitPrice(lastResponse) ?? 0)}입니다. 이대로 주문하시겠습니까?`
+      ? confirmGuideText
       : lastResponse?.response ?? '';
 
   useEffect(() => {
@@ -245,6 +265,23 @@ export const VoiceOrderPage = () => {
     const timer = setTimeout(() => responseGuideRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [mode, responseGuideText]);
+
+  useEffect(() => {
+    if (mode !== 'order-dialog' || dialogStep !== 'confirm' || !sessionId || !currentMenuId) return;
+
+    let ignore = false;
+    fetchRequiredOptionSummary(sessionId, currentMenuId)
+      .then((data) => {
+        if (!ignore) setRequiredSummary(data);
+      })
+      .catch((error) => {
+        console.error('필수 옵션 요약 API 호출 실패:', error);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentMenuId, dialogStep, mode, sessionId]);
 
   const ensureMenuCache = async () => {
     if (menuCache) return menuCache;
@@ -273,6 +310,10 @@ export const VoiceOrderPage = () => {
     setCompleteResponse(null);
     setSessionId(null);
     setShowOptionalOptions(false);
+    setRequiredSummary(null);
+    setOptionalOptions(null);
+    setSelectedOptionalOptions([]);
+    setRecommendMenus([]);
   };
 
   const goBack = () => {
@@ -290,6 +331,9 @@ export const VoiceOrderPage = () => {
     setSessionId(previous.sessionId);
     setLastResponse(previous.lastResponse);
     setShowOptionalOptions(false);
+    setRequiredSummary(null);
+    setOptionalOptions(null);
+    setSelectedOptionalOptions([]);
   };
 
   const submitOrderText = async (
@@ -320,6 +364,9 @@ export const VoiceOrderPage = () => {
       const newSessionId = data.sessionId ?? nextSessionId;
       setSessionId(newSessionId);
       setShowOptionalOptions(false);
+      setRequiredSummary(null);
+      setOptionalOptions(null);
+      setSelectedOptionalOptions([]);
 
       if (isFinalCompleteResponse(data)) {
         setCompleteResponse(data);
@@ -345,6 +392,7 @@ export const VoiceOrderPage = () => {
       await ensureMenuCache();
       const data = await fetchRecommendations(input, RESTAURANT_ID);
       const replies = data.recommendations.map((menu) => menu.name).filter(Boolean);
+      setRecommendMenus(data.recommendations);
 
       pushCurrentView();
       setSessionId(null);
@@ -358,6 +406,34 @@ export const VoiceOrderPage = () => {
       });
     } catch (error) {
       console.error('추천 API 호출 실패:', error);
+      setOrderDetailAnnouncement('추천 메뉴를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const showRecommendationsByHint = async (hint: RecommendHint) => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      await ensureMenuCache();
+      const data = await fetchRecommendationsByHint(hint.hintId);
+      const replies = data.menus.map((menu) => menu.name).filter(Boolean);
+      setRecommendMenus(data.menus);
+
+      pushCurrentView();
+      setSessionId(null);
+      setMode('order-dialog');
+      setLastResponse({
+        intent: 'RECOMMEND',
+        quickReplies: replies,
+        response: data.ttsText || `${hint.label} 추천 메뉴입니다. 원하는 메뉴를 선택해 주세요.`,
+        slots: { menu: null, optionSlots: [], quantity: null },
+        slotsComplete: false,
+      });
+    } catch (error) {
+      console.error('힌트 추천 API 호출 실패:', error);
       setOrderDetailAnnouncement('추천 메뉴를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
       setIsSubmitting(false);
@@ -400,6 +476,7 @@ export const VoiceOrderPage = () => {
   const showRecommendationInput = () => {
     pushCurrentView();
     setSessionId(null);
+    setRecommendMenus([]);
     setMode('order-dialog');
     setLastResponse({
       intent: 'RECOMMEND_INPUT',
@@ -408,11 +485,19 @@ export const VoiceOrderPage = () => {
       slots: { menu: null, optionSlots: [], quantity: null },
       slotsComplete: false,
     });
+
+    fetchRecommendHints(RESTAURANT_ID)
+      .then((data) => setRecommendHints(data.hints))
+      .catch((error) => {
+        console.error('추천 힌트 API 호출 실패:', error);
+        setRecommendHints([]);
+      });
   };
 
   const showDirectInput = () => {
     pushCurrentView();
     setSessionId(null);
+    setRecommendMenus([]);
     setMode('order-dialog');
     setLastResponse({
       intent: 'DIRECT_INPUT',
@@ -450,11 +535,21 @@ export const VoiceOrderPage = () => {
   };
 
   const announceOrderDetail = () => {
+    const changedOptionalGroupNames = new Set(selectedOptionalOptions.map((option) => option.optionGroupName));
+    const backendOptionLabels = getSlotOptionSlots(lastResponse)
+      .map((slot) => {
+        const selected = getSelectedOptionValue(slot);
+        if (!selected || changedOptionalGroupNames.has(slot.name ?? '')) return null;
+        return `${slot.name} ${selected}`;
+      })
+      .filter(Boolean) as string[];
     const details = [
-      selectedMenu,
-      selectedQuantity != null ? `${selectedQuantity}개` : null,
-      ...selectedOptionLabels,
-      typeof totalPrice === 'number' ? `총 ${formatPrice(totalPrice)}` : null,
+      requiredSummary?.message,
+      !requiredSummary?.message && selectedMenu ? selectedMenu : null,
+      !requiredSummary?.message && selectedQuantity != null ? `${selectedQuantity}개` : null,
+      ...backendOptionLabels,
+      ...selectedOptionalLabels,
+      `총 ${formatPrice(displayTotalPrice)}`,
     ]
       .filter(Boolean)
       .join(', ');
@@ -465,6 +560,62 @@ export const VoiceOrderPage = () => {
   const announceOptionDescription = (option: OptionGroupInfo | OptionSlot) => {
     setOptionDescription('');
     window.setTimeout(() => setOptionDescription(getOptionDescription(option)), 50);
+  };
+
+  const toggleOptionalOptions = async () => {
+    if (!sessionId || !currentMenuId) {
+      setOrderDetailAnnouncement('');
+      window.setTimeout(() => setOrderDetailAnnouncement('먼저 메뉴와 필수 옵션을 선택해 주세요.'), 50);
+      return;
+    }
+
+    const nextVisible = !showOptionalOptions;
+    setShowOptionalOptions(nextVisible);
+    if (!nextVisible || optionalOptions?.menuId === currentMenuId) return;
+
+    try {
+      const data = await fetchMenuOptionalOptions(currentMenuId);
+      setOptionalOptions(data);
+    } catch (error) {
+      console.error('선택 옵션 조회 API 호출 실패:', error);
+      setOrderDetailAnnouncement('');
+      window.setTimeout(() => setOrderDetailAnnouncement('추가 옵션을 불러오지 못했어요.'), 50);
+    }
+  };
+
+  const handleOptionalOptionSelect = async (
+    group: MenuOptionalOptionsResponse['optionGroups'][number],
+    optionItemId: number,
+  ) => {
+    if (!sessionId || !currentMenuId || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      const data = await selectOrderOption({
+        sessionId,
+        menuId: currentMenuId,
+        optionGroupId: group.optionGroupId,
+        optionItemId,
+      });
+      setSelectedOptionalOptions((current) => [
+        ...current.filter((option) => option.optionGroupId !== data.optionGroupId),
+        data,
+      ]);
+      setOrderDetailAnnouncement('');
+      window.setTimeout(
+        () =>
+          setOrderDetailAnnouncement(
+            `${data.optionGroupName} ${data.selectedOptionItemName} 선택되었습니다.`,
+          ),
+        50,
+      );
+    } catch (error) {
+      console.error('선택 옵션 변경 API 호출 실패:', error);
+      setOrderDetailAnnouncement('');
+      window.setTimeout(() => setOrderDetailAnnouncement('선택 옵션을 반영하지 못했어요.'), 50);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const groupedMenus = useMemo(() => {
@@ -612,37 +763,49 @@ export const VoiceOrderPage = () => {
 
           {isRecommendationInput && (
             <div className="mt-4 rounded-xl bg-white/95 px-5 py-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
-              <p className="text-lg font-black text-blue-700">이렇게 말할 수 있어요</p>
+              <p className="text-lg font-black text-blue-700">추천 힌트</p>
               <div className="mt-3 grid gap-2">
-                {RECOMMEND_EXAMPLES.map((example) => (
+                {recommendHints.map((hint) => (
                   <button
-                    key={example}
+                    key={hint.hintId}
                     type="button"
-                    onClick={() => showRecommendations(example)}
+                    onClick={() => showRecommendationsByHint(hint)}
                     disabled={isSubmitting}
                     className="rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3 text-left text-lg font-black text-slate-950 focus:outline-none focus:ring-4 focus:ring-blue-300"
                   >
-                    {example}
+                    {hint.label}
                   </button>
                 ))}
+                {recommendHints.length === 0 && (
+                  <p className="rounded-lg bg-blue-50/70 px-4 py-3 text-base font-black text-slate-500">
+                    취향을 직접 입력하면 추천 메뉴를 받을 수 있어요.
+                  </p>
+                )}
               </div>
             </div>
           )}
 
           {isRecommendationResult && (
             <div className="mt-4 grid gap-2">
-              {quickReplies.map((reply) => (
+              {(recommendMenus.length > 0
+                ? recommendMenus
+                : quickReplies.map((reply) => ({
+                    menuId: reply,
+                    name: reply,
+                    price: menuPriceByName(reply),
+                  }))
+              ).map((menu) => (
                 <button
-                  key={reply}
+                  key={menu.menuId}
                   type="button"
-                  onClick={() => handleMenuSelect(reply)}
+                  onClick={() => handleMenuSelect(menu.name)}
                   disabled={isSubmitting}
-                  aria-label={`${reply} ${formatPrice(menuPriceByName(reply))}`}
+                  aria-label={`${menu.name} ${formatPrice(menuPriceByName(menu.name, menu.price))}`}
                   className="rounded-xl bg-slate-950 px-5 py-4 text-left text-xl font-black text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300"
                 >
-                  <span>{reply}</span>
+                  <span>{menu.name}</span>
                   <span aria-hidden="true" className="mt-1 block text-sm text-slate-300">
-                    {formatPrice(menuPriceByName(reply))}
+                    {formatPrice(menuPriceByName(menu.name, menu.price))}
                   </span>
                 </button>
               ))}
@@ -694,7 +857,7 @@ export const VoiceOrderPage = () => {
                 <p className="text-sm font-black text-slate-500">주문 확인</p>
                 <p className="mt-1 text-2xl font-black text-slate-950">{selectedMenu}</p>
                 <p className="mt-1 text-xl font-black text-blue-700">
-                  {formatPrice(totalPrice ?? getSlotUnitPrice(lastResponse) ?? 0)}
+                  {formatPrice(displayTotalPrice)}
                 </p>
               </div>
               <button
@@ -706,30 +869,63 @@ export const VoiceOrderPage = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setShowOptionalOptions((current) => !current)}
+                onClick={toggleOptionalOptions}
                 className="min-h-14 rounded-xl bg-blue-50 px-5 text-left text-xl font-black text-blue-700 shadow-[0_12px_28px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-blue-300"
               >
                 추가 옵션 선택
               </button>
               {showOptionalOptions && (
                 <div className="grid gap-2">
-                  {visibleOptionalOptions.length > 0 ? (
-                    visibleOptionalOptions.map((option) => (
-                      <div key={option.name} className="grid grid-cols-[1fr_5rem] gap-2">
-                        <button
-                          type="button"
-                          onClick={() => submitOrderText(option.name ?? '', sessionId, { preserveInput: true })}
-                          className="min-h-14 rounded-xl bg-slate-950 px-4 text-left text-lg font-black text-white focus:outline-none focus:ring-4 focus:ring-blue-300"
-                        >
-                          {option.name}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => announceOptionDescription(option)}
-                          className="min-h-14 rounded-xl bg-blue-50 px-3 text-base font-black text-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300"
-                        >
-                          설명
-                        </button>
+                  {optionalOptions?.optionGroups.length ? (
+                    optionalOptions.optionGroups.map((optionGroup) => (
+                      <div
+                        key={optionGroup.optionGroupId}
+                        className="rounded-xl bg-white/95 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.09)]"
+                      >
+                        <div className="mb-2 grid grid-cols-[1fr_5rem] gap-2">
+                          <p className="px-1 text-lg font-black text-slate-950">
+                            {optionGroup.optionGroupName}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOptionDescription('');
+                              window.setTimeout(
+                                () => setOptionDescription(getOptionalOptionDescription(optionGroup)),
+                                50,
+                              );
+                            }}
+                            className="min-h-10 rounded-lg bg-blue-50 px-3 text-base font-black text-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300"
+                          >
+                            설명
+                          </button>
+                        </div>
+                        <div className="grid gap-2">
+                          {optionGroup.optionItems.map((item) => {
+                            const selected = selectedOptionalOptions.some(
+                              (option) => option.selectedOptionItemId === item.optionItemId,
+                            );
+                            return (
+                              <button
+                                key={item.optionItemId}
+                                type="button"
+                                onClick={() => handleOptionalOptionSelect(optionGroup, item.optionItemId)}
+                                disabled={isSubmitting}
+                                aria-label={`${item.optionItemName} ${item.extraPrice > 0 ? `${formatPrice(item.extraPrice)} 추가` : '추가 금액 없음'}`}
+                                className={`min-h-12 rounded-lg px-4 text-left text-base font-black focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-60 ${
+                                  selected ? 'bg-blue-700 text-white' : 'bg-slate-950 text-white'
+                                }`}
+                              >
+                                {item.optionItemName}
+                                {item.extraPrice > 0 && (
+                                  <span aria-hidden="true" className="ml-2 text-sm text-blue-100">
+                                    +{formatPrice(item.extraPrice)}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     ))
                   ) : (

@@ -102,16 +102,80 @@ export type MenuCacheResponse = {
 };
 
 export type RecommendationInfo = {
-  category: string;
+  category?: string;
   menuId: number;
   name: string;
   price: number;
-  score: number;
+  score?: number;
 };
 
 export type RecommendApiResponse = {
   recommendations: RecommendationInfo[];
   ttsText: string;
+};
+
+export type RecommendHint = {
+  hintId: number;
+  label: string;
+};
+
+export type RecommendHintListResponse = {
+  hints: RecommendHint[];
+};
+
+export type HintRecommendResponse = {
+  menus: RecommendationInfo[];
+  ttsText: string;
+};
+
+export type OptionalOptionItem = {
+  defaultQuantity?: number;
+  defaultSelected?: boolean;
+  extraPrice: number;
+  optionItemId: number;
+  optionItemName: string;
+};
+
+export type OptionalOptionGroup = {
+  optionGroupId: number;
+  optionGroupName: string;
+  optionItems: OptionalOptionItem[];
+};
+
+export type MenuOptionalOptionsResponse = {
+  menuId: number;
+  menuName: string;
+  optionGroups: OptionalOptionGroup[];
+};
+
+export type SelectedRequiredOption = {
+  optionGroupName: string;
+  optionItemName: string;
+};
+
+export type RequiredOptionSummaryResponse = {
+  menuId: number;
+  menuName: string;
+  message: string;
+  selectedRequiredOptions: SelectedRequiredOption[];
+  unitPrice: number;
+};
+
+export type OrderOptionSelectionRequest = {
+  menuId: number;
+  optionGroupId: number;
+  optionItemId: number;
+  sessionId: string;
+};
+
+export type OrderOptionSelectionResponse = {
+  extraPrice: number;
+  menuId: number;
+  optionGroupId: number;
+  optionGroupName: string;
+  selectedOptionItemId: number;
+  selectedOptionItemName: string;
+  sessionId: string;
 };
 
 export type Speak = (message: string, onEnd?: () => void) => void;

@@ -1,5 +1,15 @@
 import { apiClient } from './client';
-import type { MenuCacheResponse, OrderApiResponse, RecommendApiResponse } from '../types/order';
+import type {
+  HintRecommendResponse,
+  MenuCacheResponse,
+  MenuOptionalOptionsResponse,
+  OrderApiResponse,
+  OrderOptionSelectionRequest,
+  OrderOptionSelectionResponse,
+  RecommendApiResponse,
+  RecommendHintListResponse,
+  RequiredOptionSummaryResponse,
+} from '../types/order';
 
 const DEFAULT_RESTAURANT_ID = Number(
   import.meta.env.VITE_RESTAURANT_ID ?? import.meta.env.VITE_STORE_ID ?? 1,
@@ -42,5 +52,51 @@ export const fetchRecommendations = async (
     text,
     storeId,
   });
+  return response.data;
+};
+
+export const fetchRecommendHints = async (
+  storeId = DEFAULT_RESTAURANT_ID,
+): Promise<RecommendHintListResponse> => {
+  const response = await apiClient.get<RecommendHintListResponse>('/api/recommend/hints', {
+    params: { storeId },
+  });
+  return response.data;
+};
+
+export const fetchRecommendationsByHint = async (
+  hintId: number,
+): Promise<HintRecommendResponse> => {
+  const response = await apiClient.post<HintRecommendResponse>(`/api/recommend/hints/${hintId}`);
+  return response.data;
+};
+
+export const fetchRequiredOptionSummary = async (
+  sessionId: string,
+  menuId: number,
+): Promise<RequiredOptionSummaryResponse> => {
+  const response = await apiClient.post<RequiredOptionSummaryResponse>(
+    '/api/order/required-option-summary',
+    { sessionId, menuId },
+  );
+  return response.data;
+};
+
+export const fetchMenuOptionalOptions = async (
+  menuId: number,
+): Promise<MenuOptionalOptionsResponse> => {
+  const response = await apiClient.get<MenuOptionalOptionsResponse>(
+    `/api/order/menus/${menuId}/optional-options`,
+  );
+  return response.data;
+};
+
+export const selectOrderOption = async (
+  payload: OrderOptionSelectionRequest,
+): Promise<OrderOptionSelectionResponse> => {
+  const response = await apiClient.post<OrderOptionSelectionResponse>(
+    '/api/order/option-selection',
+    payload,
+  );
   return response.data;
 };
