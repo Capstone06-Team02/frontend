@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, CircleHelp, Coffee, Lightbulb, Send } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { CompletePage } from './CompletePage';
@@ -18,7 +18,6 @@ import type {
   MenuCacheResponse,
   MenuOptionalOptionsResponse,
   MenuInfo,
-  OptionGroupInfo,
   OptionSlot,
   OrderOptionSelectionResponse,
   OrderApiResponse,
@@ -48,25 +47,25 @@ type HomeAction = {
 };
 type TextCommandBoxProps = {
   disabled?: boolean;
-  label: string;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  label?: string;
   onSubmit: (text: string) => void;
-  placeholder: string;
+  placeholder?: string;
 };
 
 const RESTAURANT_ID = getDefaultRestaurantId();
 const RESTAURANT_DISPLAY_NAME = '중앙대 카페';
-const FEATURED_RECOMMEND_TEXT = '대표 메뉴 추천해줘';
-const HOME_INTRO_GUIDE = `음성으로 주문이 가능한 Voisk입니다.
-음성 주문 사용법을 들으시려면 오른쪽으로 한 번 스와이프 후 탭 해주세요. 첫 사용이라면 듣기를 추천드려요.
-바로 주문하시려면 두 번 스와이프 후 원하시는 기능 3가지 중 하나를 선택해주세요.`;
+const FEATURED_RECOMMEND_TEXT = '시그니처 메뉴 추천해줘';
+const HOME_INTRO_GUIDE =
+  'Voisk의 첫 화면입니다. 메뉴판, 메뉴 추천, 즉시 주문 버튼이 있습니다. 오른쪽으로 스와이프해서 원하는 기능을 선택해 주세요.';
 const HOME_USAGE_GUIDE =
-  '이제 마이크 대신 입력창을 사용합니다. 입력창에서 휴대폰 기본 받아쓰기 버튼을 누르면 음성으로 입력할 수 있어요. 메뉴를 직접 입력하거나 예시 문장을 선택한 뒤 전송하면 됩니다.';
+  '입력창에서 휴대폰 기본 받아쓰기 버튼을 누르면 음성으로 입력할 수 있어요. 메뉴를 직접 입력하거나 예시 문장을 선택한 뒤 전송하면 됩니다.';
 
 const HOME_ACTIONS: HomeAction[] = [
   {
     label: '메뉴판',
     speechInput: '메뉴판 보여줘',
-    description: '현재 주문 가능한 전체 메뉴를 확인합니다.',
+    description: '대표 메뉴 혹은 전체 메뉴를 확인할 수 있습니다.',
     icon: BookOpen,
   },
   {
@@ -78,7 +77,7 @@ const HOME_ACTIONS: HomeAction[] = [
   {
     label: '즉시 주문',
     speechInput: '메뉴 주문',
-    description: '메뉴를 즉시 음성으로 주문하실 수 있습니다.',
+    description: '원하시는 메뉴를 즉시 음성으로 주문하실 수 있습니다.',
     icon: Coffee,
   },
 ];
@@ -152,20 +151,47 @@ const STEP_TITLE: Record<DialogStep, string> = {
 const findMenuByName = (menuCache: MenuCacheResponse | null, name?: string | null) =>
   menuCache?.menus.find((menu) => menu.name === name) ?? null;
 
-const getOptionDescription = (group: OptionGroupInfo | OptionSlot) => {
-  const candidates = 'optionItems' in group ? group.optionItems : group.candidates;
-  const choices = candidates?.map((candidate) => candidate.name).filter(Boolean) ?? [];
-  if (choices.length === 0) return `${group.name ?? '옵션'} 옵션입니다.`;
-  return `${group.name ?? '옵션'} 옵션은 ${choices.join(', ')} 중에서 선택할 수 있습니다.`;
+const getRecommendHintSentence = (label: string) => {
+  const trimmed = label.trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('추천')) return trimmed;
+  return `${trimmed} 추천해줘`;
 };
 
-const getOptionalOptionDescription = (group: MenuOptionalOptionsResponse['optionGroups'][number]) => {
-  const choices = group.optionItems.map((item) => item.optionItemName).filter(Boolean);
-  if (choices.length === 0) return `${group.optionGroupName} 옵션입니다.`;
-  return `${group.optionGroupName} 옵션은 ${choices.join(', ')} 중에서 선택할 수 있습니다.`;
+const getOptionButtonLabel = (value: string) => {
+  if (value === '핫') return '뜨겁게';
+  if (value === '아이스') return '차갑게';
+  if (value === '없음') return '추가 안 함';
+  return value;
 };
 
-const TextCommandBox = ({ disabled = false, label, onSubmit, placeholder }: TextCommandBoxProps) => {
+const getSelectedOptionalLabel = (option: OrderOptionSelectionResponse) =>
+  `${option.optionGroupName} ${getOptionButtonLabel(option.selectedOptionItemName)}`;
+
+const getMissingRequiredOptionNames = (data: OrderApiResponse | null) =>
+  getSlotOptionSlots(data)
+    .filter((slot) => slot.required && !getSelectedOptionValue(slot))
+    .map((slot) => slot.name)
+    .filter(Boolean);
+
+const getRequiredOptionSelectionMap = (data: OrderApiResponse | null) =>
+  getSlotOptionSlots(data)
+    .filter((slot) => slot.required)
+    .reduce<Record<string, string>>((acc, slot) => {
+      const selected = getSelectedOptionValue(slot);
+      if (slot.name && selected) acc[slot.name] = selected;
+      return acc;
+    }, {});
+
+const getFocusDelay = (text: string) => Math.min(Math.max(text.length * 95, 1800), 6500);
+
+const TextCommandBox = ({
+  disabled = false,
+  inputRef,
+  label,
+  onSubmit,
+  placeholder,
+}: TextCommandBoxProps) => {
   const [value, setValue] = useState('');
 
   const submit = () => {
@@ -183,20 +209,25 @@ const TextCommandBox = ({ disabled = false, label, onSubmit, placeholder }: Text
         submit();
       }}
     >
-      <label className="sr-only" htmlFor={label}>{label}</label>
-      <textarea
-        id={label}
+      {!label && !placeholder && (
+        <span aria-hidden="true" className="px-1 text-base font-black text-slate-500">
+          텍스트 필드
+        </span>
+      )}
+      <input
+        ref={inputRef}
+        aria-label={label || undefined}
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        rows={2}
         disabled={disabled}
-        placeholder={placeholder}
-        className="min-h-20 resize-none rounded-lg border-2 border-blue-100 bg-blue-50/40 px-4 py-3 text-lg font-black leading-snug text-slate-950 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-60"
+        placeholder={placeholder || undefined}
+        autoComplete="off"
+        className="min-h-14 rounded-lg border-2 border-blue-100 bg-blue-50/40 px-4 py-3 text-lg font-black leading-snug text-slate-950 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-60"
       />
       <button
         type="submit"
         disabled={disabled || !value.trim()}
-        aria-label="입력한 내용 전송"
+        aria-label="전송"
         className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-lg font-black text-white shadow-[0_12px_28px_rgba(29,78,216,0.22)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none"
       >
         <Send aria-hidden="true" size={20} />
@@ -218,6 +249,7 @@ export const VoiceOrderPage = () => {
   const [requiredSummary, setRequiredSummary] = useState<RequiredOptionSummaryResponse | null>(null);
   const [optionalOptions, setOptionalOptions] = useState<MenuOptionalOptionsResponse | null>(null);
   const [selectedOptionalOptions, setSelectedOptionalOptions] = useState<OrderOptionSelectionResponse[]>([]);
+  const [optimisticRequiredOptions, setOptimisticRequiredOptions] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [homeUsageAnnouncement, setHomeUsageAnnouncement] = useState('');
   const [orderDetailAnnouncement, setOrderDetailAnnouncement] = useState('');
@@ -226,6 +258,11 @@ export const VoiceOrderPage = () => {
 
   const homeGuideRef = useRef<HTMLParagraphElement>(null);
   const responseGuideRef = useRef<HTMLParagraphElement>(null);
+  const optionGuideRef = useRef<HTMLParagraphElement>(null);
+  const firstFullMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const commandInputRef = useRef<HTMLInputElement>(null);
+  const featuredGuideRef = useRef<HTMLParagraphElement>(null);
+  const lastOptionGuideFocusKeyRef = useRef('');
   const viewHistoryRef = useRef<ViewSnapshot[]>([]);
   const { speak } = useVoice();
 
@@ -237,9 +274,9 @@ export const VoiceOrderPage = () => {
   const currentMenu = findMenuByName(menuCache, selectedMenu);
   const currentMenuId = currentMenu?.menuId ?? null;
   const requiredSlots = getSlotOptionSlots(lastResponse).filter((slot) => slot.required);
-  const selectedOptionalLabels = selectedOptionalOptions.map(
-    (option) => `${option.optionGroupName} ${option.selectedOptionItemName}`,
-  );
+  const selectedOptionalLabels = selectedOptionalOptions.map(getSelectedOptionalLabel);
+  const selectedRequiredLabels =
+    requiredSummary?.selectedRequiredOptions.map((option) => option.optionItemName).filter(Boolean) ?? [];
   const optionExtraPrice = selectedOptionalOptions.reduce((sum, option) => sum + (option.extraPrice ?? 0), 0);
   const displayTotalPrice = (requiredSummary?.unitPrice ?? totalPrice ?? getSlotUnitPrice(lastResponse) ?? 0) + optionExtraPrice;
   const confirmGuideText = requiredSummary?.message
@@ -247,11 +284,15 @@ export const VoiceOrderPage = () => {
         selectedOptionalLabels.length > 0
           ? ` 추가 옵션은 ${selectedOptionalLabels.join(', ')}입니다. 총 ${formatPrice(displayTotalPrice)}입니다.`
           : ''
-      } 이대로 주문하시겠습니까?`
-    : `${selectedMenu ?? '선택한 메뉴'} ${selectedQuantity ?? 1}개, 총 ${formatPrice(displayTotalPrice)}입니다. 이대로 주문하시겠습니까?`;
+      } 이대로 주문하시려면 주문이라고 말씀해 주세요. 내역을 확인하고 싶으시면 아래로 스와이프해 주세요. 추가하고 싶은 옵션도 이 화면에서 추가하실 수 있습니다.`
+    : `${selectedMenu ?? '선택한 메뉴'} ${selectedQuantity ?? 1}개, 총 ${formatPrice(displayTotalPrice)}입니다. 이대로 주문하시려면 주문이라고 말씀해 주세요. 내역을 확인하고 싶으시면 아래로 스와이프해 주세요. 추가하고 싶은 옵션도 이 화면에서 추가하실 수 있습니다.`;
   const responseGuideText =
     dialogStep === 'confirm' && selectedMenu
-      ? confirmGuideText
+      ? requiredSummary
+        ? confirmGuideText
+        : ''
+      : dialogStep === 'option'
+      ? ''
       : lastResponse?.response ?? '';
 
   useEffect(() => {
@@ -262,9 +303,32 @@ export const VoiceOrderPage = () => {
 
   useEffect(() => {
     if (mode !== 'order-dialog' || !responseGuideText) return;
-    const timer = setTimeout(() => responseGuideRef.current?.focus(), 0);
+    const guideTimer = setTimeout(() => responseGuideRef.current?.focus(), 0);
+    const shouldMoveToInput = dialogStep !== 'option';
+    const inputTimer = shouldMoveToInput
+      ? setTimeout(() => commandInputRef.current?.focus(), getFocusDelay(responseGuideText))
+      : undefined;
+    return () => {
+      clearTimeout(guideTimer);
+      if (inputTimer) clearTimeout(inputTimer);
+    };
+  }, [dialogStep, mode, responseGuideText]);
+
+  useEffect(() => {
+    if (mode !== 'order-dialog' || dialogStep !== 'option') return;
+    const focusKey = `${sessionId ?? 'new'}-${selectedMenu ?? ''}`;
+    if (lastOptionGuideFocusKeyRef.current === focusKey) return;
+    lastOptionGuideFocusKeyRef.current = focusKey;
+
+    const timer = setTimeout(() => optionGuideRef.current?.focus(), 0);
     return () => clearTimeout(timer);
-  }, [mode, responseGuideText]);
+  }, [dialogStep, mode, selectedMenu, sessionId]);
+
+  useEffect(() => {
+    if (mode !== 'featured-menu') return;
+    const timer = setTimeout(() => featuredGuideRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [mode]);
 
   useEffect(() => {
     if (mode !== 'order-dialog' || dialogStep !== 'confirm' || !sessionId || !currentMenuId) return;
@@ -290,6 +354,12 @@ export const VoiceOrderPage = () => {
     return data;
   };
 
+  const clearTransientAnnouncements = () => {
+    setHomeUsageAnnouncement('');
+    setOrderDetailAnnouncement('');
+    setOptionDescription('');
+  };
+
   const pushCurrentView = () => {
     const snapshot: ViewSnapshot = { mode, sessionId, lastResponse };
     const previous = viewHistoryRef.current.at(-1);
@@ -305,6 +375,8 @@ export const VoiceOrderPage = () => {
 
   const goHome = () => {
     viewHistoryRef.current = [];
+    lastOptionGuideFocusKeyRef.current = '';
+    clearTransientAnnouncements();
     setMode('home');
     setLastResponse(null);
     setCompleteResponse(null);
@@ -313,6 +385,7 @@ export const VoiceOrderPage = () => {
     setRequiredSummary(null);
     setOptionalOptions(null);
     setSelectedOptionalOptions([]);
+    setOptimisticRequiredOptions({});
     setRecommendMenus([]);
   };
 
@@ -328,12 +401,14 @@ export const VoiceOrderPage = () => {
     }
 
     setMode(previous.mode);
+    clearTransientAnnouncements();
     setSessionId(previous.sessionId);
     setLastResponse(previous.lastResponse);
     setShowOptionalOptions(false);
     setRequiredSummary(null);
     setOptionalOptions(null);
     setSelectedOptionalOptions([]);
+    setOptimisticRequiredOptions(getRequiredOptionSelectionMap(previous.lastResponse));
   };
 
   const submitOrderText = async (
@@ -341,7 +416,7 @@ export const VoiceOrderPage = () => {
     nextSessionId: string | null = sessionId,
     options: SubmitOrderOptions = {},
   ) => {
-    const input = options.preserveInput ? rawInput.trim() : normalizeOrderText(rawInput);
+    let input = options.preserveInput ? rawInput.trim() : normalizeOrderText(rawInput);
     if (!input || isSubmitting) return;
 
     if (input.includes('처음으로')) {
@@ -356,8 +431,12 @@ export const VoiceOrderPage = () => {
       showRecommendations(input);
       return;
     }
+    if (dialogStep === 'confirm' && input.includes('주문')) {
+      input = getConfirmReply(lastResponse);
+    }
 
     setIsSubmitting(true);
+    clearTransientAnnouncements();
     try {
       await ensureMenuCache();
       const data = await sendOrderText(input, nextSessionId, RESTAURANT_ID);
@@ -373,9 +452,22 @@ export const VoiceOrderPage = () => {
         return;
       }
 
+      const previousMissingRequiredOptions = getMissingRequiredOptionNames(lastResponse);
+      const nextMissingRequiredOptions = getMissingRequiredOptionNames(data);
+
       pushCurrentView();
       setMode('order-dialog');
       setLastResponse(data);
+      setOptimisticRequiredOptions(getRequiredOptionSelectionMap(data));
+
+      if (
+        previousMissingRequiredOptions.length > nextMissingRequiredOptions.length &&
+        nextMissingRequiredOptions.length > 0
+      ) {
+        setTimeout(() => {
+          setOrderDetailAnnouncement(`${nextMissingRequiredOptions.join(', ')}도 선택해 주세요.`);
+        }, 300);
+      }
     } catch (error) {
       console.error('주문 API 호출 실패:', error);
       setOrderDetailAnnouncement('서버와 연결하지 못했어요. 잠시 후 다시 시도해주세요.');
@@ -395,6 +487,7 @@ export const VoiceOrderPage = () => {
       setRecommendMenus(data.recommendations);
 
       pushCurrentView();
+      clearTransientAnnouncements();
       setSessionId(null);
       setMode('order-dialog');
       setLastResponse({
@@ -423,6 +516,7 @@ export const VoiceOrderPage = () => {
       setRecommendMenus(data.menus);
 
       pushCurrentView();
+      clearTransientAnnouncements();
       setSessionId(null);
       setMode('order-dialog');
       setLastResponse({
@@ -449,13 +543,15 @@ export const VoiceOrderPage = () => {
       const data = await fetchRecommendations(FEATURED_RECOMMEND_TEXT, RESTAURANT_ID);
       setFeaturedMenus(data.recommendations);
       pushCurrentView();
+      clearTransientAnnouncements();
       setMode('featured-menu');
     } catch (error) {
-      console.error('대표 메뉴 호출 실패:', error);
+      console.error('시그니처 메뉴 호출 실패:', error);
       setFeaturedMenus([]);
       pushCurrentView();
+      clearTransientAnnouncements();
       setMode('featured-menu');
-      setOrderDetailAnnouncement('대표 메뉴를 불러오지 못했어요. 전체 메뉴를 확인해 주세요.');
+      setOrderDetailAnnouncement('시그니처 메뉴를 불러오지 못했어요. 전체 메뉴를 확인해 주세요.');
     } finally {
       setIsSubmitting(false);
     }
@@ -467,6 +563,7 @@ export const VoiceOrderPage = () => {
     try {
       await ensureMenuCache();
       pushCurrentView();
+      clearTransientAnnouncements();
       setMode('full-menu');
     } finally {
       setIsSubmitting(false);
@@ -475,13 +572,15 @@ export const VoiceOrderPage = () => {
 
   const showRecommendationInput = () => {
     pushCurrentView();
+    clearTransientAnnouncements();
     setSessionId(null);
     setRecommendMenus([]);
     setMode('order-dialog');
     setLastResponse({
       intent: 'RECOMMEND_INPUT',
       quickReplies: [],
-      response: '추천받고 싶은 취향을 입력해 주세요.',
+      response:
+        '추천 받고 싶은 메뉴를 말씀해 주세요. 추천 문장들을 듣고 싶다면 텍스트 필드 아래에 있어요. 마음에 드시는 문장을 선택하시면 바로 주문으로 도와드릴 수 있어요.',
       slots: { menu: null, optionSlots: [], quantity: null },
       slotsComplete: false,
     });
@@ -496,6 +595,7 @@ export const VoiceOrderPage = () => {
 
   const showDirectInput = () => {
     pushCurrentView();
+    clearTransientAnnouncements();
     setSessionId(null);
     setRecommendMenus([]);
     setMode('order-dialog');
@@ -526,40 +626,17 @@ export const VoiceOrderPage = () => {
 
   const handleMenuSelect = (menuName: string) => {
     setSessionId(null);
-    submitOrderText(menuName, null, { preserveInput: true });
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    window.setTimeout(() => {
+      submitOrderText(menuName, null, { preserveInput: true });
+    }, 450);
   };
 
   const announceHomeUsageGuide = () => {
     setHomeUsageAnnouncement('');
     window.setTimeout(() => setHomeUsageAnnouncement(HOME_USAGE_GUIDE), 50);
-  };
-
-  const announceOrderDetail = () => {
-    const changedOptionalGroupNames = new Set(selectedOptionalOptions.map((option) => option.optionGroupName));
-    const backendOptionLabels = getSlotOptionSlots(lastResponse)
-      .map((slot) => {
-        const selected = getSelectedOptionValue(slot);
-        if (!selected || changedOptionalGroupNames.has(slot.name ?? '')) return null;
-        return `${slot.name} ${selected}`;
-      })
-      .filter(Boolean) as string[];
-    const details = [
-      requiredSummary?.message,
-      !requiredSummary?.message && selectedMenu ? selectedMenu : null,
-      !requiredSummary?.message && selectedQuantity != null ? `${selectedQuantity}개` : null,
-      ...backendOptionLabels,
-      ...selectedOptionalLabels,
-      `총 ${formatPrice(displayTotalPrice)}`,
-    ]
-      .filter(Boolean)
-      .join(', ');
-    setOrderDetailAnnouncement('');
-    window.setTimeout(() => setOrderDetailAnnouncement(details || '주문 내역이 아직 없습니다.'), 50);
-  };
-
-  const announceOptionDescription = (option: OptionGroupInfo | OptionSlot) => {
-    setOptionDescription('');
-    window.setTimeout(() => setOptionDescription(getOptionDescription(option)), 50);
   };
 
   const toggleOptionalOptions = async () => {
@@ -605,7 +682,7 @@ export const VoiceOrderPage = () => {
       window.setTimeout(
         () =>
           setOrderDetailAnnouncement(
-            `${data.optionGroupName} ${data.selectedOptionItemName} 선택되었습니다.`,
+            `${data.optionGroupName} ${getOptionButtonLabel(data.selectedOptionItemName)} 선택되었습니다.`,
           ),
         50,
       );
@@ -633,8 +710,15 @@ export const VoiceOrderPage = () => {
     return groups;
   }, [menuCache]);
 
+  useEffect(() => {
+    if (mode !== 'full-menu') return;
+    const timer = setTimeout(() => firstFullMenuButtonRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [groupedMenus, mode]);
+
   const menuPriceByName = (name: string, fallback?: number) =>
     findMenuByName(menuCache, name)?.price ?? fallback ?? 0;
+  const firstFullMenuId = groupedMenus[0]?.[1]?.[0]?.menuId ?? null;
 
   if (completeResponse) {
     return (
@@ -652,7 +736,10 @@ export const VoiceOrderPage = () => {
       <div className="voisk-screen-bg text-slate-950">
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={RESTAURANT_DISPLAY_NAME} />
-          <p className="mb-3 text-2xl font-black text-blue-700">대표 메뉴</p>
+          <p ref={featuredGuideRef} tabIndex={0} className="sr-only">
+            이 매장의 시그니처 메뉴입니다. 전체 메뉴를 보고 싶으시다면 하단에 버튼이 있습니다.
+          </p>
+          <p className="mb-3 text-2xl font-black text-blue-700">시그니처 메뉴</p>
           <div aria-live="polite" className="sr-only">{orderDetailAnnouncement}</div>
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <div className="grid gap-2">
@@ -673,7 +760,7 @@ export const VoiceOrderPage = () => {
               ))}
               {featuredMenus.length === 0 && (
                 <p className="rounded-lg bg-white/95 px-5 py-4 text-lg font-black text-slate-500">
-                  대표 메뉴를 불러오지 못했어요.
+                  시그니처 메뉴를 불러오지 못했어요.
                 </p>
               )}
             </div>
@@ -707,6 +794,7 @@ export const VoiceOrderPage = () => {
                   <div className="grid gap-2">
                     {menus.map((menu) => (
                       <button
+                        ref={menu.menuId === firstFullMenuId ? firstFullMenuButtonRef : undefined}
                         key={menu.menuId}
                         type="button"
                         onClick={() => handleMenuSelect(menu.name)}
@@ -735,6 +823,17 @@ export const VoiceOrderPage = () => {
     const isRecommendationResult = dialogStep === 'recommend';
     const isConfirm = dialogStep === 'confirm';
     const textSubmit = isRecommendationInput ? showRecommendations : (text: string) => submitOrderText(text);
+    const commandInputLabel =
+      dialogStep === 'option'
+        ? ''
+        : `${STEP_TITLE[dialogStep]} 입력창`;
+    const commandPlaceholder = isRecommendationInput
+      ? '시원한 거 먹고 싶어'
+      : dialogStep === 'option'
+      ? ''
+      : dialogStep === 'confirm'
+      ? '주문 또는 변경할 내용을 입력해 주세요'
+      : '주문 내용을 입력해 주세요';
 
     return (
       <div className="voisk-screen-bg select-none text-slate-950">
@@ -745,6 +844,11 @@ export const VoiceOrderPage = () => {
               {responseGuideText}
             </p>
           )}
+          {dialogStep === 'option' && (
+            <p ref={optionGuideRef} tabIndex={0} className="sr-only">
+              음료의 온도와 컵 사이즈를 말씀하시거나 스와이프 하여 선택하실 수 있습니다.
+            </p>
+          )}
           <div aria-live="polite" aria-atomic="true" className="sr-only">
             {orderDetailAnnouncement}
             {optionDescription}
@@ -752,18 +856,15 @@ export const VoiceOrderPage = () => {
 
           <TextCommandBox
             disabled={isSubmitting}
-            label={`${STEP_TITLE[dialogStep]} 입력창`}
+            inputRef={commandInputRef}
+            label={commandInputLabel}
             onSubmit={textSubmit}
-            placeholder={
-              isRecommendationInput
-                ? '예: 시원한 거 먹고 싶어'
-                : '예: 슈크림 라떼 2개 아이스로 톨 사이즈'
-            }
+            placeholder={commandPlaceholder}
           />
 
           {isRecommendationInput && (
             <div className="mt-4 rounded-xl bg-white/95 px-5 py-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
-              <p className="text-lg font-black text-blue-700">추천 힌트</p>
+              <p className="text-lg font-black text-blue-700">추천 문장</p>
               <div className="mt-3 grid gap-2">
                 {recommendHints.map((hint) => (
                   <button
@@ -773,7 +874,7 @@ export const VoiceOrderPage = () => {
                     disabled={isSubmitting}
                     className="rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3 text-left text-lg font-black text-slate-950 focus:outline-none focus:ring-4 focus:ring-blue-300"
                   >
-                    {hint.label}
+                    {getRecommendHintSentence(hint.label)}
                   </button>
                 ))}
                 {recommendHints.length === 0 && (
@@ -815,58 +916,78 @@ export const VoiceOrderPage = () => {
           {dialogStep === 'option' && (
             <div className="mt-4 grid gap-3">
               <p className="text-lg font-black text-blue-700">필수 옵션</p>
-              {(requiredSlots.length > 0 ? requiredSlots : getSlotOptionSlots(lastResponse)).map((slot) => (
-                <div key={slot.name} className="grid grid-cols-[1fr_5rem] gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOrderDetailAnnouncement(slot.name ?? '옵션')}
-                    className="min-h-14 rounded-xl bg-slate-950 px-4 text-left text-lg font-black text-white focus:outline-none focus:ring-4 focus:ring-blue-300"
-                  >
-                    {slot.name}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => announceOptionDescription(slot)}
-                    className="min-h-14 rounded-xl bg-blue-50 px-3 text-base font-black text-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300"
-                  >
-                    설명
-                  </button>
-                </div>
-              ))}
-              {quickReplies.length > 0 && (
-                <div className="grid gap-2">
-                  {quickReplies.map((reply) => (
-                    <button
-                      key={reply}
-                      type="button"
-                      onClick={() => submitOrderText(reply, sessionId, { preserveInput: true })}
-                      disabled={isSubmitting}
-                      className="min-h-14 rounded-xl bg-white/95 px-4 text-left text-lg font-black text-slate-950 shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+              {requiredSlots.map((slot) => {
+                const choices = slot.candidates?.filter((candidate) => candidate.name) ?? [];
+                const slotName = slot.name ?? '';
+                return (
+                  <div key={slotName} className="rounded-xl bg-white/95 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.09)]">
+                    <p
+                      tabIndex={0}
+                      className="mb-2 px-1 text-lg font-black text-slate-950 focus:outline-none focus:ring-4 focus:ring-blue-300"
                     >
-                      {reply}
-                    </button>
-                  ))}
-                </div>
-              )}
+                      {slotName}
+                    </p>
+                    <div className={`grid gap-2 ${choices.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                      {choices.map((candidate) => {
+                        const label = getOptionButtonLabel(candidate.name);
+                        const selected =
+                          optimisticRequiredOptions[slotName] === candidate.name ||
+                          candidate.selected ||
+                          getSelectedOptionValue(slot) === candidate.name;
+                        return (
+                          <button
+                            key={candidate.name}
+                            type="button"
+                            onClick={() => {
+                              setOptimisticRequiredOptions((current) => ({
+                                ...current,
+                                [slotName]: candidate.name,
+                              }));
+                              submitOrderText(candidate.name, sessionId, { preserveInput: true });
+                            }}
+                            aria-label={label}
+                            className={`min-h-14 rounded-xl border-2 px-3 text-center text-base font-black shadow-[0_12px_28px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-300 ${
+                              selected
+                                ? 'border-blue-700 bg-blue-700 text-white'
+                                : 'border-blue-100 bg-white text-slate-950'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {isConfirm && (
             <div className="mt-4 grid gap-3">
-              <div className="rounded-xl bg-white/95 px-5 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
+              <div
+                tabIndex={0}
+                aria-label={requiredSummary ? `주문 확인. ${confirmGuideText}` : '주문 확인 정보를 불러오는 중입니다.'}
+                className="rounded-xl bg-white/95 px-5 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+              >
                 <p className="text-sm font-black text-slate-500">주문 확인</p>
-                <p className="mt-1 text-2xl font-black text-slate-950">{selectedMenu}</p>
-                <p className="mt-1 text-xl font-black text-blue-700">
+                <p className="mt-1 text-xl font-black leading-snug text-slate-950">
+                  {requiredSummary?.menuName ?? selectedMenu}
+                </p>
+                {selectedRequiredLabels.length > 0 && (
+                  <p className="mt-2 text-base font-black text-slate-500">
+                    {selectedRequiredLabels.join(', ')}
+                  </p>
+                )}
+                {selectedOptionalLabels.length > 0 && (
+                  <p className="mt-2 text-base font-black text-slate-500">
+                    추가 옵션 {selectedOptionalLabels.join(', ')}
+                  </p>
+                )}
+                <p className="mt-2 text-xl font-black text-blue-700">
                   {formatPrice(displayTotalPrice)}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={announceOrderDetail}
-                className="min-h-14 rounded-xl bg-white/95 px-5 text-left text-xl font-black text-slate-950 shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300"
-              >
-                주문 내역 확인
-              </button>
               <button
                 type="button"
                 onClick={toggleOptionalOptions}
@@ -882,24 +1003,9 @@ export const VoiceOrderPage = () => {
                         key={optionGroup.optionGroupId}
                         className="rounded-xl bg-white/95 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.09)]"
                       >
-                        <div className="mb-2 grid grid-cols-[1fr_5rem] gap-2">
-                          <p className="px-1 text-lg font-black text-slate-950">
-                            {optionGroup.optionGroupName}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOptionDescription('');
-                              window.setTimeout(
-                                () => setOptionDescription(getOptionalOptionDescription(optionGroup)),
-                                50,
-                              );
-                            }}
-                            className="min-h-10 rounded-lg bg-blue-50 px-3 text-base font-black text-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300"
-                          >
-                            설명
-                          </button>
-                        </div>
+                        <p className="mb-2 px-1 text-lg font-black text-slate-950">
+                          {optionGroup.optionGroupName}
+                        </p>
                         <div className="grid gap-2">
                           {optionGroup.optionItems.map((item) => {
                             const selected = selectedOptionalOptions.some(
@@ -911,12 +1017,16 @@ export const VoiceOrderPage = () => {
                                 type="button"
                                 onClick={() => handleOptionalOptionSelect(optionGroup, item.optionItemId)}
                                 disabled={isSubmitting}
-                                aria-label={`${item.optionItemName} ${item.extraPrice > 0 ? `${formatPrice(item.extraPrice)} 추가` : '추가 금액 없음'}`}
+                                aria-label={
+                                  item.extraPrice > 0
+                                    ? `${getOptionButtonLabel(item.optionItemName)} ${formatPrice(item.extraPrice)} 추가`
+                                    : getOptionButtonLabel(item.optionItemName)
+                                }
                                 className={`min-h-12 rounded-lg px-4 text-left text-base font-black focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-60 ${
                                   selected ? 'bg-blue-700 text-white' : 'bg-slate-950 text-white'
                                 }`}
                               >
-                                {item.optionItemName}
+                                {getOptionButtonLabel(item.optionItemName)}
                                 {item.extraPrice > 0 && (
                                   <span aria-hidden="true" className="ml-2 text-sm text-blue-100">
                                     +{formatPrice(item.extraPrice)}
