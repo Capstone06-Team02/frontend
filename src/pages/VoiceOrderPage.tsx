@@ -37,6 +37,7 @@ type ViewSnapshot = {
   sessionId: string | null;
 };
 type SubmitOrderOptions = {
+  optimisticSlotName?: string;
   preserveInput?: boolean;
 };
 type HomeAction = {
@@ -168,9 +169,18 @@ const getOptionButtonLabel = (value: string) => {
 const getSelectedOptionalLabel = (option: OrderOptionSelectionResponse) =>
   `${option.optionGroupName} ${getOptionButtonLabel(option.selectedOptionItemName)}`;
 
-const getMissingRequiredOptionNames = (data: OrderApiResponse | null) =>
+const getMissingRequiredOptionNames = (
+  data: OrderApiResponse | null,
+  optimisticSelections: Record<string, string> = {},
+) =>
   getSlotOptionSlots(data)
-    .filter((slot) => slot.required && !getSelectedOptionValue(slot))
+    .filter((slot) => {
+      if (!slot.required || getSelectedOptionValue(slot)) return false;
+      if (slot.name && optimisticSelections[slot.name]) return false;
+      return !slot.candidates?.some((candidate) =>
+        Object.values(optimisticSelections).includes(candidate.name),
+      );
+    })
     .map((slot) => slot.name)
     .filter((name): name is string => Boolean(name));
 
@@ -272,6 +282,9 @@ export const VoiceOrderPage = () => {
   const featuredGuideRef = useRef<HTMLParagraphElement>(null);
   const lastOptionGuideFocusKeyRef = useRef('');
   const lastResponseGuideFocusKeyRef = useRef('');
+  const processingNoticeTimerRef = useRef<number | null>(null);
+  const processingNoticeVisibleRef = useRef(false);
+  const immediateFeedbackTimerRef = useRef<number | null>(null);
   const viewHistoryRef = useRef<ViewSnapshot[]>([]);
   const { speak } = useVoice();
 
@@ -306,6 +319,11 @@ export const VoiceOrderPage = () => {
   const responseGuideFocusKey = `${mode}-${dialogStep}-${sessionId ?? ''}-${lastResponse?.response ?? ''}-${
     requiredSummary?.message ?? ''
   }`;
+  const optionGuideText =
+    lastResponse?.response ||
+    (requiredSlots.length > 0
+      ? `${requiredSlots.map((slot) => slot.name).filter(Boolean).join(', ')} 옵션을 선택해 주세요.`
+      : '필수 옵션을 선택해 주세요.');
 
   useEffect(() => {
     if (mode !== 'home') return;
@@ -326,13 +344,13 @@ export const VoiceOrderPage = () => {
 
   useEffect(() => {
     if (mode !== 'order-dialog' || dialogStep !== 'option') return;
-    const focusKey = `${sessionId ?? 'new'}-${selectedMenu ?? ''}`;
+    const focusKey = `${selectedMenu ?? ''}`;
     if (lastOptionGuideFocusKeyRef.current === focusKey) return;
     lastOptionGuideFocusKeyRef.current = focusKey;
 
     const timer = setTimeout(() => optionGuideRef.current?.focus(), 0);
     return () => clearTimeout(timer);
-  }, [dialogStep, mode, selectedMenu, sessionId]);
+  }, [dialogStep, mode, selectedMenu]);
 
   useEffect(() => {
     if (mode !== 'featured-menu') return;
@@ -344,11 +362,16 @@ export const VoiceOrderPage = () => {
     if (mode !== 'order-dialog' || dialogStep !== 'confirm' || !sessionId || !currentMenuId) return;
 
     let ignore = false;
+    startProcessingNotice();
     fetchRequiredOptionSummary(sessionId, currentMenuId)
       .then((data) => {
-        if (!ignore) setRequiredSummary(data);
+        if (!ignore) {
+          stopProcessingNotice();
+          setRequiredSummary(data);
+        }
       })
       .catch((error) => {
+        stopProcessingNotice();
         console.error('필수 옵션 요약 API 호출 실패:', error);
       });
 
@@ -365,15 +388,52 @@ export const VoiceOrderPage = () => {
   };
 
   const clearTransientAnnouncements = () => {
+    if (immediateFeedbackTimerRef.current) {
+      window.clearTimeout(immediateFeedbackTimerRef.current);
+      immediateFeedbackTimerRef.current = null;
+    }
     setHomeUsageAnnouncement('');
     setOrderDetailAnnouncement('');
     setOptionDescription('');
+  };
+
+  const announceImmediateFeedback = (message: string) => {
+    if (immediateFeedbackTimerRef.current) {
+      window.clearTimeout(immediateFeedbackTimerRef.current);
+    }
+    setOrderDetailAnnouncement('');
+    immediateFeedbackTimerRef.current = window.setTimeout(() => {
+      setOrderDetailAnnouncement(message);
+      immediateFeedbackTimerRef.current = null;
+    }, 550);
   };
 
   const announceOrderDetail = (message: string, clearDelay = 1800) => {
     setOrderDetailAnnouncement('');
     window.setTimeout(() => setOrderDetailAnnouncement(message), 50);
     window.setTimeout(() => setOrderDetailAnnouncement(''), clearDelay);
+  };
+
+  const startProcessingNotice = () => {
+    if (processingNoticeTimerRef.current) {
+      window.clearTimeout(processingNoticeTimerRef.current);
+    }
+    processingNoticeVisibleRef.current = false;
+    processingNoticeTimerRef.current = window.setTimeout(() => {
+      processingNoticeVisibleRef.current = true;
+      setOrderDetailAnnouncement('처리 중입니다. 잠시만 기다려 주세요.');
+    }, 800);
+  };
+
+  const stopProcessingNotice = () => {
+    if (processingNoticeTimerRef.current) {
+      window.clearTimeout(processingNoticeTimerRef.current);
+      processingNoticeTimerRef.current = null;
+    }
+    if (processingNoticeVisibleRef.current) {
+      processingNoticeVisibleRef.current = false;
+      setOrderDetailAnnouncement('');
+    }
   };
 
   const pushCurrentView = () => {
@@ -452,16 +512,24 @@ export const VoiceOrderPage = () => {
       input = getConfirmReply(lastResponse);
     }
 
-    const optimisticSlotName = getRequiredSlotNameForChoice(lastResponse, input);
+    const optimisticSlotName = options.optimisticSlotName ?? getRequiredSlotNameForChoice(lastResponse, input);
     const nextOptimisticRequiredOptions = optimisticSlotName
       ? { ...optimisticRequiredOptions, [optimisticSlotName]: input }
       : optimisticRequiredOptions;
+    const remainingRequiredOptionsAfterOptimistic = getMissingRequiredOptionNames(
+      lastResponse,
+      nextOptimisticRequiredOptions,
+    );
+    const shouldShowProcessingNotice =
+      dialogStep !== 'option' || !optimisticSlotName || remainingRequiredOptionsAfterOptimistic.length === 0;
 
     setIsSubmitting(true);
     clearTransientAnnouncements();
+    if (shouldShowProcessingNotice) startProcessingNotice();
     try {
       await ensureMenuCache();
       const data = await sendOrderText(input, nextSessionId, RESTAURANT_ID);
+      stopProcessingNotice();
       const newSessionId = data.sessionId ?? nextSessionId;
       setSessionId(newSessionId);
       setShowOptionalOptions(false);
@@ -474,11 +542,6 @@ export const VoiceOrderPage = () => {
         return;
       }
 
-      const previousMissingRequiredOptions = getMissingRequiredOptionNames(lastResponse);
-      const nextMissingRequiredOptions = getMissingRequiredOptionNames(data).filter(
-        (name) => !nextOptimisticRequiredOptions[name],
-      );
-
       pushCurrentView();
       setMode('order-dialog');
       setLastResponse(data);
@@ -489,14 +552,16 @@ export const VoiceOrderPage = () => {
       });
 
       if (
-        previousMissingRequiredOptions.length > nextMissingRequiredOptions.length &&
-        nextMissingRequiredOptions.length > 0
+        dialogStep === 'option' &&
+        optimisticSlotName &&
+        remainingRequiredOptionsAfterOptimistic.length > 0
       ) {
         window.setTimeout(() => {
-          announceOrderDetail(`${nextMissingRequiredOptions.join(', ')}도 선택해 주세요.`, 2200);
-        }, 300);
+          announceOrderDetail(`${remainingRequiredOptionsAfterOptimistic.join(', ')}도 선택해 주세요.`, 2200);
+        }, 0);
       }
     } catch (error) {
+      stopProcessingNotice();
       console.error('주문 API 호출 실패:', error);
       setOrderDetailAnnouncement('서버와 연결하지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -508,9 +573,12 @@ export const VoiceOrderPage = () => {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
+    announceImmediateFeedback('추천 메뉴를 찾고 있습니다.');
+    startProcessingNotice();
     try {
       await ensureMenuCache();
       const data = await fetchRecommendations(input, RESTAURANT_ID);
+      stopProcessingNotice();
       const replies = data.recommendations.map((menu) => menu.name).filter(Boolean);
       setRecommendMenus(data.recommendations);
 
@@ -526,6 +594,7 @@ export const VoiceOrderPage = () => {
         slotsComplete: false,
       });
     } catch (error) {
+      stopProcessingNotice();
       console.error('추천 API 호출 실패:', error);
       setOrderDetailAnnouncement('추천 메뉴를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -537,9 +606,12 @@ export const VoiceOrderPage = () => {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
+    announceImmediateFeedback(`${hint.label} 추천 메뉴를 찾고 있습니다.`);
+    startProcessingNotice();
     try {
       await ensureMenuCache();
       const data = await fetchRecommendationsByHint(hint.hintId);
+      stopProcessingNotice();
       const replies = data.menus.map((menu) => menu.name).filter(Boolean);
       setRecommendMenus(data.menus);
 
@@ -555,6 +627,7 @@ export const VoiceOrderPage = () => {
         slotsComplete: false,
       });
     } catch (error) {
+      stopProcessingNotice();
       console.error('힌트 추천 API 호출 실패:', error);
       setOrderDetailAnnouncement('추천 메뉴를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -566,9 +639,12 @@ export const VoiceOrderPage = () => {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
+    announceImmediateFeedback('시그니처 메뉴를 불러오고 있습니다.');
+    startProcessingNotice();
     try {
       await ensureMenuCache();
       const data = await fetchRecommendations(FEATURED_RECOMMEND_TEXT, RESTAURANT_ID);
+      stopProcessingNotice();
       setFeaturedMenus(data.recommendations);
       pushCurrentView();
       clearTransientAnnouncements();
@@ -581,6 +657,7 @@ export const VoiceOrderPage = () => {
       setMode('featured-menu');
       setOrderDetailAnnouncement('시그니처 메뉴를 불러오지 못했어요. 전체 메뉴를 확인해 주세요.');
     } finally {
+      stopProcessingNotice();
       setIsSubmitting(false);
     }
   };
@@ -588,12 +665,16 @@ export const VoiceOrderPage = () => {
   const showFullMenuBoard = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    announceImmediateFeedback('전체 메뉴를 불러오고 있습니다.');
+    startProcessingNotice();
     try {
       await ensureMenuCache();
+      stopProcessingNotice();
       pushCurrentView();
       clearTransientAnnouncements();
       setMode('full-menu');
     } finally {
+      stopProcessingNotice();
       setIsSubmitting(false);
     }
   };
@@ -613,9 +694,14 @@ export const VoiceOrderPage = () => {
       slotsComplete: false,
     });
 
+    startProcessingNotice();
     fetchRecommendHints(RESTAURANT_ID)
-      .then((data) => setRecommendHints(data.hints))
+      .then((data) => {
+        stopProcessingNotice();
+        setRecommendHints(data.hints);
+      })
       .catch((error) => {
+        stopProcessingNotice();
         console.error('추천 힌트 API 호출 실패:', error);
         setRecommendHints([]);
       });
@@ -653,13 +739,15 @@ export const VoiceOrderPage = () => {
   };
 
   const handleMenuSelect = (menuName: string) => {
+    const selectedPrice = menuPriceByName(menuName);
+    announceImmediateFeedback(`${menuName} ${formatPrice(selectedPrice)} 메뉴 선택되었습니다.`);
     setSessionId(null);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     window.setTimeout(() => {
       submitOrderText(menuName, null, { preserveInput: true });
-    }, 450);
+    }, 1100);
   };
 
   const announceHomeUsageGuide = () => {
@@ -677,10 +765,13 @@ export const VoiceOrderPage = () => {
     setShowOptionalOptions(nextVisible);
     if (!nextVisible || optionalOptions?.menuId === currentMenuId) return;
 
+    startProcessingNotice();
     try {
       const data = await fetchMenuOptionalOptions(currentMenuId);
+      stopProcessingNotice();
       setOptionalOptions(data);
     } catch (error) {
+      stopProcessingNotice();
       console.error('선택 옵션 조회 API 호출 실패:', error);
       announceOrderDetail('추가 옵션을 불러오지 못했어요.');
     }
@@ -693,6 +784,7 @@ export const VoiceOrderPage = () => {
     if (!sessionId || !currentMenuId || isSubmitting) return;
 
     setIsSubmitting(true);
+    startProcessingNotice();
     try {
       const data = await selectOrderOption({
         sessionId,
@@ -700,6 +792,7 @@ export const VoiceOrderPage = () => {
         optionGroupId: group.optionGroupId,
         optionItemId,
       });
+      stopProcessingNotice();
       setSelectedOptionalOptions((current) => [
         ...current.filter((option) => option.optionGroupId !== data.optionGroupId),
         data,
@@ -708,6 +801,7 @@ export const VoiceOrderPage = () => {
         `${data.optionGroupName} ${getOptionButtonLabel(data.selectedOptionItemName)} 선택되었습니다.`,
       );
     } catch (error) {
+      stopProcessingNotice();
       console.error('선택 옵션 변경 API 호출 실패:', error);
       announceOrderDetail('선택 옵션을 반영하지 못했어요.');
     } finally {
@@ -863,7 +957,7 @@ export const VoiceOrderPage = () => {
           )}
           {dialogStep === 'option' && (
             <p ref={optionGuideRef} tabIndex={0} className="sr-only">
-              음료의 온도와 컵 사이즈를 말씀하시거나 스와이프 하여 선택하실 수 있습니다.
+              {optionGuideText}
             </p>
           )}
           <div aria-live="polite" aria-atomic="true" className="sr-only">
@@ -958,7 +1052,10 @@ export const VoiceOrderPage = () => {
                                 ...current,
                                 [slotName]: candidate.name,
                               }));
-                              submitOrderText(candidate.name, sessionId, { preserveInput: true });
+                              submitOrderText(candidate.name, sessionId, {
+                                optimisticSlotName: slotName,
+                                preserveInput: true,
+                              });
                             }}
                             aria-label={label}
                             className={`min-h-14 rounded-xl border-2 px-3 text-center text-base font-black shadow-[0_12px_28px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-300 ${
