@@ -172,7 +172,15 @@ const getMissingRequiredOptionNames = (data: OrderApiResponse | null) =>
   getSlotOptionSlots(data)
     .filter((slot) => slot.required && !getSelectedOptionValue(slot))
     .map((slot) => slot.name)
-    .filter(Boolean);
+    .filter((name): name is string => Boolean(name));
+
+const getRequiredSlotNameForChoice = (data: OrderApiResponse | null, choice: string) =>
+  getSlotOptionSlots(data).find(
+    (slot) =>
+      slot.required &&
+      slot.name &&
+      slot.candidates?.some((candidate) => candidate.name === choice),
+  )?.name;
 
 const getRequiredOptionSelectionMap = (data: OrderApiResponse | null) =>
   getSlotOptionSlots(data)
@@ -182,8 +190,6 @@ const getRequiredOptionSelectionMap = (data: OrderApiResponse | null) =>
       if (slot.name && selected) acc[slot.name] = selected;
       return acc;
     }, {});
-
-const getFocusDelay = (text: string) => Math.min(Math.max(text.length * 95, 1800), 6500);
 
 const TextCommandBox = ({
   disabled = false,
@@ -219,16 +225,18 @@ const TextCommandBox = ({
         aria-label={label || undefined}
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        disabled={disabled}
         placeholder={placeholder || undefined}
         autoComplete="off"
-        className="min-h-14 rounded-lg border-2 border-blue-100 bg-blue-50/40 px-4 py-3 text-lg font-black leading-snug text-slate-950 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-60"
+        className="min-h-14 rounded-lg border-2 border-blue-100 bg-blue-50/40 px-4 py-3 text-lg font-black leading-snug text-slate-950 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-300"
       />
       <button
         type="submit"
-        disabled={disabled || !value.trim()}
         aria-label="전송"
-        className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-lg font-black text-white shadow-[0_12px_28px_rgba(29,78,216,0.22)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-slate-300 disabled:shadow-none"
+        className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-lg font-black text-white focus:outline-none focus:ring-4 focus:ring-blue-300 ${
+          disabled || !value.trim()
+            ? 'bg-slate-300 shadow-none'
+            : 'bg-blue-700 shadow-[0_12px_28px_rgba(29,78,216,0.22)]'
+        }`}
       >
         <Send aria-hidden="true" size={20} />
         전송
@@ -263,6 +271,7 @@ export const VoiceOrderPage = () => {
   const commandInputRef = useRef<HTMLInputElement>(null);
   const featuredGuideRef = useRef<HTMLParagraphElement>(null);
   const lastOptionGuideFocusKeyRef = useRef('');
+  const lastResponseGuideFocusKeyRef = useRef('');
   const viewHistoryRef = useRef<ViewSnapshot[]>([]);
   const { speak } = useVoice();
 
@@ -294,6 +303,9 @@ export const VoiceOrderPage = () => {
       : dialogStep === 'option'
       ? ''
       : lastResponse?.response ?? '';
+  const responseGuideFocusKey = `${mode}-${dialogStep}-${sessionId ?? ''}-${lastResponse?.response ?? ''}-${
+    requiredSummary?.message ?? ''
+  }`;
 
   useEffect(() => {
     if (mode !== 'home') return;
@@ -303,16 +315,14 @@ export const VoiceOrderPage = () => {
 
   useEffect(() => {
     if (mode !== 'order-dialog' || !responseGuideText) return;
+    if (lastResponseGuideFocusKeyRef.current === responseGuideFocusKey) return;
+    lastResponseGuideFocusKeyRef.current = responseGuideFocusKey;
+
     const guideTimer = setTimeout(() => responseGuideRef.current?.focus(), 0);
-    const shouldMoveToInput = dialogStep !== 'option';
-    const inputTimer = shouldMoveToInput
-      ? setTimeout(() => commandInputRef.current?.focus(), getFocusDelay(responseGuideText))
-      : undefined;
     return () => {
       clearTimeout(guideTimer);
-      if (inputTimer) clearTimeout(inputTimer);
     };
-  }, [dialogStep, mode, responseGuideText]);
+  }, [dialogStep, mode, responseGuideFocusKey, responseGuideText]);
 
   useEffect(() => {
     if (mode !== 'order-dialog' || dialogStep !== 'option') return;
@@ -360,6 +370,12 @@ export const VoiceOrderPage = () => {
     setOptionDescription('');
   };
 
+  const announceOrderDetail = (message: string, clearDelay = 1800) => {
+    setOrderDetailAnnouncement('');
+    window.setTimeout(() => setOrderDetailAnnouncement(message), 50);
+    window.setTimeout(() => setOrderDetailAnnouncement(''), clearDelay);
+  };
+
   const pushCurrentView = () => {
     const snapshot: ViewSnapshot = { mode, sessionId, lastResponse };
     const previous = viewHistoryRef.current.at(-1);
@@ -376,6 +392,7 @@ export const VoiceOrderPage = () => {
   const goHome = () => {
     viewHistoryRef.current = [];
     lastOptionGuideFocusKeyRef.current = '';
+    lastResponseGuideFocusKeyRef.current = '';
     clearTransientAnnouncements();
     setMode('home');
     setLastResponse(null);
@@ -435,6 +452,11 @@ export const VoiceOrderPage = () => {
       input = getConfirmReply(lastResponse);
     }
 
+    const optimisticSlotName = getRequiredSlotNameForChoice(lastResponse, input);
+    const nextOptimisticRequiredOptions = optimisticSlotName
+      ? { ...optimisticRequiredOptions, [optimisticSlotName]: input }
+      : optimisticRequiredOptions;
+
     setIsSubmitting(true);
     clearTransientAnnouncements();
     try {
@@ -453,19 +475,25 @@ export const VoiceOrderPage = () => {
       }
 
       const previousMissingRequiredOptions = getMissingRequiredOptionNames(lastResponse);
-      const nextMissingRequiredOptions = getMissingRequiredOptionNames(data);
+      const nextMissingRequiredOptions = getMissingRequiredOptionNames(data).filter(
+        (name) => !nextOptimisticRequiredOptions[name],
+      );
 
       pushCurrentView();
       setMode('order-dialog');
       setLastResponse(data);
-      setOptimisticRequiredOptions(getRequiredOptionSelectionMap(data));
+      setOptimisticRequiredOptions((current) => {
+        const responseSelections = getRequiredOptionSelectionMap(data);
+        if (getDialogStep(data) !== 'option') return responseSelections;
+        return { ...current, ...nextOptimisticRequiredOptions, ...responseSelections };
+      });
 
       if (
         previousMissingRequiredOptions.length > nextMissingRequiredOptions.length &&
         nextMissingRequiredOptions.length > 0
       ) {
-        setTimeout(() => {
-          setOrderDetailAnnouncement(`${nextMissingRequiredOptions.join(', ')}도 선택해 주세요.`);
+        window.setTimeout(() => {
+          announceOrderDetail(`${nextMissingRequiredOptions.join(', ')}도 선택해 주세요.`, 2200);
         }, 300);
       }
     } catch (error) {
@@ -641,8 +669,7 @@ export const VoiceOrderPage = () => {
 
   const toggleOptionalOptions = async () => {
     if (!sessionId || !currentMenuId) {
-      setOrderDetailAnnouncement('');
-      window.setTimeout(() => setOrderDetailAnnouncement('먼저 메뉴와 필수 옵션을 선택해 주세요.'), 50);
+      announceOrderDetail('먼저 메뉴와 필수 옵션을 선택해 주세요.');
       return;
     }
 
@@ -655,8 +682,7 @@ export const VoiceOrderPage = () => {
       setOptionalOptions(data);
     } catch (error) {
       console.error('선택 옵션 조회 API 호출 실패:', error);
-      setOrderDetailAnnouncement('');
-      window.setTimeout(() => setOrderDetailAnnouncement('추가 옵션을 불러오지 못했어요.'), 50);
+      announceOrderDetail('추가 옵션을 불러오지 못했어요.');
     }
   };
 
@@ -678,18 +704,12 @@ export const VoiceOrderPage = () => {
         ...current.filter((option) => option.optionGroupId !== data.optionGroupId),
         data,
       ]);
-      setOrderDetailAnnouncement('');
-      window.setTimeout(
-        () =>
-          setOrderDetailAnnouncement(
-            `${data.optionGroupName} ${getOptionButtonLabel(data.selectedOptionItemName)} 선택되었습니다.`,
-          ),
-        50,
+      announceOrderDetail(
+        `${data.optionGroupName} ${getOptionButtonLabel(data.selectedOptionItemName)} 선택되었습니다.`,
       );
     } catch (error) {
       console.error('선택 옵션 변경 API 호출 실패:', error);
-      setOrderDetailAnnouncement('');
-      window.setTimeout(() => setOrderDetailAnnouncement('선택 옵션을 반영하지 못했어요.'), 50);
+      announceOrderDetail('선택 옵션을 반영하지 못했어요.');
     } finally {
       setIsSubmitting(false);
     }
@@ -748,9 +768,8 @@ export const VoiceOrderPage = () => {
                   key={menu.menuId}
                   type="button"
                   onClick={() => handleMenuSelect(menu.name)}
-                  disabled={isSubmitting}
                   aria-label={`${menu.name} ${formatPrice(menuPriceByName(menu.name, menu.price))}`}
-                  className="rounded-lg bg-white/95 px-5 py-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-60"
+                  className="rounded-lg bg-white/95 px-5 py-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300"
                 >
                   <span className="block text-xl font-black text-slate-950">{menu.name}</span>
                   <span aria-hidden="true" className="mt-1 block text-base font-black text-slate-500">
@@ -768,7 +787,6 @@ export const VoiceOrderPage = () => {
           <button
             type="button"
             onClick={showFullMenuBoard}
-            disabled={isSubmitting}
             className="mt-3 min-h-14 rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300"
           >
             전체 메뉴 보기
@@ -798,9 +816,8 @@ export const VoiceOrderPage = () => {
                         key={menu.menuId}
                         type="button"
                         onClick={() => handleMenuSelect(menu.name)}
-                        disabled={isSubmitting}
                         aria-label={`${menu.name} ${formatPrice(menu.price)}`}
-                        className="rounded-lg bg-white/95 px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-70"
+                        className="rounded-lg bg-white/95 px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300"
                       >
                         <span className="block text-xl font-black leading-tight text-slate-950">{menu.name}</span>
                         <span aria-hidden="true" className="mt-1 block text-sm font-bold text-slate-500">
@@ -824,7 +841,7 @@ export const VoiceOrderPage = () => {
     const isConfirm = dialogStep === 'confirm';
     const textSubmit = isRecommendationInput ? showRecommendations : (text: string) => submitOrderText(text);
     const commandInputLabel =
-      dialogStep === 'option'
+      dialogStep === 'option' || dialogStep === 'confirm'
         ? ''
         : `${STEP_TITLE[dialogStep]} 입력창`;
     const commandPlaceholder = isRecommendationInput
@@ -871,7 +888,6 @@ export const VoiceOrderPage = () => {
                     key={hint.hintId}
                     type="button"
                     onClick={() => showRecommendationsByHint(hint)}
-                    disabled={isSubmitting}
                     className="rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3 text-left text-lg font-black text-slate-950 focus:outline-none focus:ring-4 focus:ring-blue-300"
                   >
                     {getRecommendHintSentence(hint.label)}
@@ -900,7 +916,6 @@ export const VoiceOrderPage = () => {
                   key={menu.menuId}
                   type="button"
                   onClick={() => handleMenuSelect(menu.name)}
-                  disabled={isSubmitting}
                   aria-label={`${menu.name} ${formatPrice(menuPriceByName(menu.name, menu.price))}`}
                   className="rounded-xl bg-slate-950 px-5 py-4 text-left text-xl font-black text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300"
                 >
@@ -1016,13 +1031,12 @@ export const VoiceOrderPage = () => {
                                 key={item.optionItemId}
                                 type="button"
                                 onClick={() => handleOptionalOptionSelect(optionGroup, item.optionItemId)}
-                                disabled={isSubmitting}
                                 aria-label={
                                   item.extraPrice > 0
                                     ? `${getOptionButtonLabel(item.optionItemName)} ${formatPrice(item.extraPrice)} 추가`
                                     : getOptionButtonLabel(item.optionItemName)
                                 }
-                                className={`min-h-12 rounded-lg px-4 text-left text-base font-black focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-60 ${
+                                className={`min-h-12 rounded-lg px-4 text-left text-base font-black focus:outline-none focus:ring-4 focus:ring-blue-300 ${
                                   selected ? 'bg-blue-700 text-white' : 'bg-slate-950 text-white'
                                 }`}
                               >
@@ -1048,7 +1062,6 @@ export const VoiceOrderPage = () => {
               <button
                 type="button"
                 onClick={() => submitOrderText(getConfirmReply(lastResponse), sessionId, { preserveInput: true })}
-                disabled={isSubmitting}
                 className="min-h-16 rounded-xl bg-blue-700 px-5 text-xl font-black text-white shadow-[0_16px_38px_rgba(29,78,216,0.3)] focus:outline-none focus:ring-4 focus:ring-blue-300"
               >
                 이대로 주문
