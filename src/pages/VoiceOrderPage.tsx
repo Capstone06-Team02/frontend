@@ -297,18 +297,21 @@ export const VoiceOrderPage = () => {
     requiredSummary?.selectedRequiredOptions.map((option) => option.optionItemName).filter(Boolean) ?? [];
   const optionExtraPrice = selectedOptionalOptions.reduce((sum, option) => sum + (option.extraPrice ?? 0), 0);
   const displayTotalPrice = (requiredSummary?.unitPrice ?? totalPrice ?? getSlotUnitPrice(lastResponse) ?? 0) + optionExtraPrice;
-  const confirmGuideText = requiredSummary?.message
-    ? `${requiredSummary.message}${
-        selectedOptionalLabels.length > 0
-          ? ` 추가 옵션은 ${selectedOptionalLabels.join(', ')}입니다. 총 ${formatPrice(displayTotalPrice)}입니다.`
-          : ''
-      } 이대로 주문하시려면 주문이라고 말씀해 주세요. 내역을 확인하고 싶으시면 아래로 스와이프해 주세요. 추가하고 싶은 옵션도 이 화면에서 추가하실 수 있습니다.`
-    : `${selectedMenu ?? '선택한 메뉴'} ${selectedQuantity ?? 1}개, 총 ${formatPrice(displayTotalPrice)}입니다. 이대로 주문하시려면 주문이라고 말씀해 주세요. 내역을 확인하고 싶으시면 아래로 스와이프해 주세요. 추가하고 싶은 옵션도 이 화면에서 추가하실 수 있습니다.`;
+  const confirmSummaryText =
+    requiredSummary?.message ??
+    lastResponse?.response ??
+    `${selectedMenu ?? '선택한 메뉴'} ${selectedQuantity ?? 1}개, 총 ${formatPrice(displayTotalPrice)}입니다.`;
+  const confirmCardGuideText = [
+    requiredSummary?.menuName ?? selectedMenu,
+    selectedRequiredLabels.join(', '),
+    selectedOptionalLabels.length > 0 ? `추가 옵션 ${selectedOptionalLabels.join(', ')}` : '',
+    formatPrice(displayTotalPrice),
+  ]
+    .filter(Boolean)
+    .join(', ');
   const responseGuideText =
     dialogStep === 'confirm' && selectedMenu
-      ? requiredSummary
-        ? confirmGuideText
-        : ''
+      ? confirmSummaryText
       : dialogStep === 'option'
       ? ''
       : lastResponse?.response ?? '';
@@ -316,10 +319,12 @@ export const VoiceOrderPage = () => {
     requiredSummary?.message ?? ''
   }`;
   const optionGuideText =
-    lastResponse?.response ||
-    (requiredSlots.length > 0
-      ? `${requiredSlots.map((slot) => slot.name).filter(Boolean).join(', ')} 옵션을 선택해 주세요.`
-      : '필수 옵션을 선택해 주세요.');
+    requiredSlots.length > 0
+      ? `${selectedMenu ?? '선택한 메뉴'}의 필수 옵션인 ${requiredSlots
+          .map((slot) => slot.name)
+          .filter(Boolean)
+          .join(', ')}를 말씀하시거나 선택해 주세요.`
+      : '필수 옵션을 선택해 주세요.';
 
   useEffect(() => {
     if (mode !== 'home') return;
@@ -347,6 +352,12 @@ export const VoiceOrderPage = () => {
     const timer = setTimeout(() => optionGuideRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [dialogStep, mode, selectedMenu]);
+
+  useEffect(() => {
+    if (mode !== 'order-dialog' || dialogStep !== 'input') return;
+    const timer = setTimeout(() => commandInputRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [dialogStep, mode]);
 
   useEffect(() => {
     if (mode !== 'featured-menu') return;
@@ -793,9 +804,7 @@ export const VoiceOrderPage = () => {
         ...current.filter((option) => option.optionGroupId !== data.optionGroupId),
         data,
       ]);
-      announceOrderDetail(
-        `${data.optionGroupName} ${getOptionButtonLabel(data.selectedOptionItemName)} 선택되었습니다.`,
-      );
+      announceOrderDetail(`${getOptionButtonLabel(data.selectedOptionItemName)} 선택되었습니다.`);
     } catch (error) {
       stopProcessingNotice();
       console.error('선택 옵션 변경 API 호출 실패:', error);
@@ -961,13 +970,15 @@ export const VoiceOrderPage = () => {
             {optionDescription}
           </div>
 
-          <TextCommandBox
-            disabled={isSubmitting}
-            inputRef={commandInputRef}
-            label={commandInputLabel}
-            onSubmit={textSubmit}
-            placeholder={commandPlaceholder}
-          />
+          {!isConfirm && (
+            <TextCommandBox
+              disabled={isSubmitting}
+              inputRef={commandInputRef}
+              label={commandInputLabel}
+              onSubmit={textSubmit}
+              placeholder={commandPlaceholder}
+            />
+          )}
 
           {isRecommendationInput && (
             <div className="mt-4 rounded-xl bg-white/95 px-5 py-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
@@ -1073,9 +1084,16 @@ export const VoiceOrderPage = () => {
 
           {isConfirm && (
             <div className="mt-4 grid gap-3">
+              <button
+                type="button"
+                onClick={() => submitOrderText(getConfirmReply(lastResponse), sessionId, { preserveInput: true })}
+                className="min-h-16 rounded-xl bg-blue-700 px-5 text-xl font-black text-white shadow-[0_16px_38px_rgba(29,78,216,0.3)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+              >
+                이대로 주문
+              </button>
               <div
                 tabIndex={0}
-                aria-label={requiredSummary ? `주문 확인. ${confirmGuideText}` : '주문 확인 정보를 불러오는 중입니다.'}
+                aria-label={requiredSummary || lastResponse ? `주문 확인. ${confirmCardGuideText}` : '주문 확인 정보를 불러오는 중입니다.'}
                 className="rounded-xl bg-white/95 px-5 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-300"
               >
                 <p className="text-sm font-black text-slate-500">주문 확인</p>
@@ -1096,6 +1114,13 @@ export const VoiceOrderPage = () => {
                   {formatPrice(displayTotalPrice)}
                 </p>
               </div>
+              <TextCommandBox
+                disabled={isSubmitting}
+                inputRef={commandInputRef}
+                label={commandInputLabel}
+                onSubmit={textSubmit}
+                placeholder={commandPlaceholder}
+              />
               <button
                 type="button"
                 onClick={toggleOptionalOptions}
@@ -1152,13 +1177,6 @@ export const VoiceOrderPage = () => {
                   )}
                 </div>
               )}
-              <button
-                type="button"
-                onClick={() => submitOrderText(getConfirmReply(lastResponse), sessionId, { preserveInput: true })}
-                className="min-h-16 rounded-xl bg-blue-700 px-5 text-xl font-black text-white shadow-[0_16px_38px_rgba(29,78,216,0.3)] focus:outline-none focus:ring-4 focus:ring-blue-300"
-              >
-                이대로 주문
-              </button>
             </div>
           )}
         </div>
