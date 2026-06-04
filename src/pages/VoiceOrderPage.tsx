@@ -85,7 +85,7 @@ const HOME_ACTIONS: HomeAction[] = [
 
 const getReplies = (data: OrderApiResponse | null) => data?.quickReplies?.filter(Boolean) ?? [];
 const getConfirmReply = (data: OrderApiResponse | null) =>
-  getReplies(data).find((reply) => ['확인', '네', '맞습니다'].includes(reply)) ?? '확인';
+  getReplies(data).find((reply) => ['확인', '네', '맞습니다', '주문', '주문할게요'].includes(reply)) ?? '확인';
 const getPrimaryOrderItem = (data: OrderApiResponse | null) => data?.slots?.items?.[0] ?? null;
 const getSlotMenu = (data: OrderApiResponse | null) =>
   getPrimaryOrderItem(data)?.menu ?? data?.slots?.menu ?? null;
@@ -113,11 +113,7 @@ const getSelectedOptionValue = (slot: OptionSlot) => {
 
 const isFinalCompleteResponse = (data: OrderApiResponse) => {
   const response = data.response ?? '';
-  return (
-    data.intent === 'CONFIRM' &&
-    getReplies(data).length === 0 &&
-    (response.includes('주문 완료') || response.includes('완료되었습니다') || response.includes('나올게요'))
-  );
+  return response.includes('주문 완료') || response.includes('완료되었습니다') || response.includes('나올게요');
 };
 
 const getDialogStep = (data: OrderApiResponse | null): DialogStep => {
