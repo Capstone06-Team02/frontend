@@ -155,6 +155,13 @@ const getRecommendHintSentence = (label: string) => {
   return `${trimmed} 추천해줘`;
 };
 
+const normalizeRecommendHintText = (text: string) =>
+  text
+    .replace(/\s/g, '')
+    .replace(/추천(해줘|해주세요|받기|받고싶어|좀)?/g, '')
+    .replace(/메뉴/g, '')
+    .replace(/음료/g, '');
+
 const getOptionButtonLabel = (value: string) => {
   if (value === '핫') return '뜨겁게';
   if (value === '아이스') return '차갑게';
@@ -578,6 +585,17 @@ export const VoiceOrderPage = () => {
 
   const showRecommendations = async (input: string) => {
     if (isSubmitting) return;
+
+    const normalizedInput = normalizeRecommendHintText(input);
+    const matchedHint = recommendHints.find((hint) => {
+      const normalizedLabel = normalizeRecommendHintText(hint.label);
+      if (!normalizedInput || !normalizedLabel) return false;
+      return normalizedInput.includes(normalizedLabel) || normalizedLabel.includes(normalizedInput);
+    });
+    if (matchedHint) {
+      await showRecommendationsByHint(matchedHint);
+      return;
+    }
 
     setIsSubmitting(true);
     announceImmediateFeedback('추천 메뉴를 찾고 있습니다.');
@@ -1084,13 +1102,13 @@ export const VoiceOrderPage = () => {
 
           {isConfirm && (
             <div className="mt-4 grid gap-3">
-              <button
-                type="button"
-                onClick={() => submitOrderText(getConfirmReply(lastResponse), sessionId, { preserveInput: true })}
-                className="min-h-16 rounded-xl bg-blue-700 px-5 text-xl font-black text-white shadow-[0_16px_38px_rgba(29,78,216,0.3)] focus:outline-none focus:ring-4 focus:ring-blue-300"
-              >
-                이대로 주문
-              </button>
+              <TextCommandBox
+                disabled={isSubmitting}
+                inputRef={commandInputRef}
+                label={commandInputLabel}
+                onSubmit={textSubmit}
+                placeholder={commandPlaceholder}
+              />
               <div
                 tabIndex={0}
                 aria-label={requiredSummary || lastResponse ? `주문 확인. ${confirmCardGuideText}` : '주문 확인 정보를 불러오는 중입니다.'}
@@ -1114,13 +1132,6 @@ export const VoiceOrderPage = () => {
                   {formatPrice(displayTotalPrice)}
                 </p>
               </div>
-              <TextCommandBox
-                disabled={isSubmitting}
-                inputRef={commandInputRef}
-                label={commandInputLabel}
-                onSubmit={textSubmit}
-                placeholder={commandPlaceholder}
-              />
               <button
                 type="button"
                 onClick={toggleOptionalOptions}
@@ -1177,6 +1188,13 @@ export const VoiceOrderPage = () => {
                   )}
                 </div>
               )}
+              <button
+                type="button"
+                onClick={() => submitOrderText(getConfirmReply(lastResponse), sessionId, { preserveInput: true })}
+                className="min-h-16 rounded-xl bg-blue-700 px-5 text-xl font-black text-white shadow-[0_16px_38px_rgba(29,78,216,0.3)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+              >
+                이대로 주문
+              </button>
             </div>
           )}
         </div>
