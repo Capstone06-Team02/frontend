@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, CircleHelp, Coffee, Lightbulb, Send } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { CompletePage } from './CompletePage';
@@ -116,6 +116,20 @@ const isFinalCompleteResponse = (data: OrderApiResponse) => {
   return response.includes('주문 완료') || response.includes('완료되었습니다') || response.includes('나올게요');
 };
 
+const isOptionalChoiceResponse = (data: OrderApiResponse | null) => {
+  const replies = getReplies(data);
+  if (!data || replies.length === 0) return false;
+
+  const hasOptionalCommand = replies.includes('없음') || replies.includes('확인');
+  const response = data.response ?? '';
+  return (
+    hasOptionalCommand &&
+    (response.includes('변경 가능한 선택 옵션') ||
+      response.includes('추가할 옵션') ||
+      response.includes('없으면 없다고'))
+  );
+};
+
 const getDialogStep = (data: OrderApiResponse | null): DialogStep => {
   if (!data) return 'continue';
   if (isFinalCompleteResponse(data)) return 'complete';
@@ -127,6 +141,7 @@ const getDialogStep = (data: OrderApiResponse | null): DialogStep => {
   const hasQuantity = getSlotQuantity(data) != null;
 
   if (data.slotsComplete && hasMenu && hasQuantity) return 'confirm';
+  if (isOptionalChoiceResponse(data)) return 'option';
   if (getSlotOptionSlots(data).some((slot) => slot.required && !getSelectedOptionValue(slot))) return 'option';
   if (data.response?.includes('옵션') || data.response?.includes('온도') || data.response?.includes('사이즈')) {
     return 'option';
@@ -172,28 +187,18 @@ const getOptionButtonLabel = (value: string) => {
 const getSelectedOptionalLabel = (option: OrderOptionSelectionResponse) =>
   `${option.optionGroupName} ${getOptionButtonLabel(option.selectedOptionItemName)}`;
 
-const getMissingRequiredOptionNames = (
-  data: OrderApiResponse | null,
-  optimisticSelections: Record<string, string> = {},
-) =>
-  getSlotOptionSlots(data)
-    .filter((slot) => {
-      if (!slot.required || getSelectedOptionValue(slot)) return false;
-      if (slot.name && optimisticSelections[slot.name]) return false;
-      return !slot.candidates?.some((candidate) =>
-        Object.values(optimisticSelections).includes(candidate.name),
-      );
-    })
-    .map((slot) => slot.name)
-    .filter((name): name is string => Boolean(name));
-
 const getRequiredSlotNameForChoice = (data: OrderApiResponse | null, choice: string) =>
   getSlotOptionSlots(data).find(
     (slot) =>
       slot.required &&
       slot.name &&
-      slot.candidates?.some((candidate) => candidate.name === choice),
+      slot.candidates?.some((candidate) => candidate.name === choice || getOptionButtonLabel(candidate.name) === choice),
   )?.name;
+
+const getRequiredCandidateValueForChoice = (data: OrderApiResponse | null, choice: string) =>
+  getSlotOptionSlots(data)
+    .flatMap((slot) => slot.candidates ?? [])
+    .find((candidate) => candidate.name === choice || getOptionButtonLabel(candidate.name) === choice)?.name ?? choice;
 
 const getRequiredOptionSelectionMap = (data: OrderApiResponse | null) =>
   getSlotOptionSlots(data)
@@ -203,6 +208,82 @@ const getRequiredOptionSelectionMap = (data: OrderApiResponse | null) =>
       if (slot.name && selected) acc[slot.name] = selected;
       return acc;
     }, {});
+
+const normalizeOptionMatchText = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/\s/g, '')
+    .replace(/[.,!?~"'`]/g, '')
+    .replace(/(으로|로|을|를|은|는|이|가|좀|해주세요|해줘|주세요|선택|변경|추가)$/g, '');
+
+const optionTextMatches = (input: string, target: string) => {
+  const normalizedInput = normalizeOptionMatchText(input);
+  const normalizedTarget = normalizeOptionMatchText(target);
+  if (!normalizedInput || !normalizedTarget) return false;
+  return normalizedInput.includes(normalizedTarget) || normalizedTarget.includes(normalizedInput);
+};
+
+const findOptionalOptionByText = (options: MenuOptionalOptionsResponse | null, input: string) => {
+  if (!options) return null;
+
+  for (const group of options.optionGroups) {
+    const groupMatched = optionTextMatches(input, group.optionGroupName);
+    for (const item of group.optionItems) {
+      const itemLabel = getOptionButtonLabel(item.optionItemName);
+      const candidates = [
+        item.optionItemName,
+        itemLabel,
+        `${group.optionGroupName} ${item.optionItemName}`,
+        `${group.optionGroupName} ${itemLabel}`,
+      ];
+      if (candidates.some((candidate) => optionTextMatches(input, candidate))) {
+        return { group, item };
+      }
+    }
+
+    if (groupMatched && group.optionItems.length === 1) {
+      return { group, item: group.optionItems[0] };
+    }
+  }
+
+  return null;
+};
+
+const getMenuRequiredSlots = (
+  menu: MenuInfo | null,
+  responseSlots: OptionSlot[],
+): OptionSlot[] => {
+  const responseSlotByName = new Map(responseSlots.filter((slot) => slot.name).map((slot) => [slot.name, slot]));
+  const menuRequiredGroups =
+    menu?.optionGroups?.filter((group) => group.isRequired && group.isAvailable !== false && group.optionItems.length > 0) ??
+    [];
+
+  if (menuRequiredGroups.length === 0) return responseSlots.filter((slot) => slot.required);
+
+  return menuRequiredGroups.map((group) => {
+    const responseSlot = responseSlotByName.get(group.name);
+    return {
+      ...responseSlot,
+      name: group.name,
+      optionGroupId: group.optionGroupId,
+      parentOptionItemId: group.parentOptionItemId,
+      required: true,
+      candidates: group.optionItems
+        .filter((item) => item.isAvailable !== false)
+        .map((item) => ({
+          defaultQuantity: item.defaultQuantity,
+          defaultSelected: item.isDefault,
+          extraPrice: item.extraPrice,
+          maxQuantity: item.maxQuantity,
+          name: item.name,
+          optionItemId: item.optionItemId,
+          selected:
+            responseSlot?.candidates?.some((candidate) => candidate.name === item.name && candidate.selected) ??
+            false,
+        })),
+    };
+  });
+};
 
 const TextCommandBox = ({
   disabled = false,
@@ -294,20 +375,17 @@ export const VoiceOrderPage = () => {
   const dialogStep = getDialogStep(lastResponse);
   const quickReplies = getReplies(lastResponse);
   const selectedMenu = getSlotMenu(lastResponse);
-  const selectedQuantity = getSlotQuantity(lastResponse);
   const totalPrice = getSlotTotalPrice(lastResponse);
   const currentMenu = findMenuByName(menuCache, selectedMenu);
   const currentMenuId = currentMenu?.menuId ?? null;
   const requiredSlots = getSlotOptionSlots(lastResponse).filter((slot) => slot.required);
+  const visibleRequiredSlots = getMenuRequiredSlots(currentMenu, requiredSlots);
+  const optionalChoiceStep = isOptionalChoiceResponse(lastResponse);
   const selectedOptionalLabels = selectedOptionalOptions.map(getSelectedOptionalLabel);
   const selectedRequiredLabels =
     requiredSummary?.selectedRequiredOptions.map((option) => option.optionItemName).filter(Boolean) ?? [];
   const optionExtraPrice = selectedOptionalOptions.reduce((sum, option) => sum + (option.extraPrice ?? 0), 0);
   const displayTotalPrice = (requiredSummary?.unitPrice ?? totalPrice ?? getSlotUnitPrice(lastResponse) ?? 0) + optionExtraPrice;
-  const confirmSummaryText =
-    requiredSummary?.message ??
-    lastResponse?.response ??
-    `${selectedMenu ?? '선택한 메뉴'} ${selectedQuantity ?? 1}개, 총 ${formatPrice(displayTotalPrice)}입니다.`;
   const confirmCardGuideText = [
     requiredSummary?.menuName ?? selectedMenu,
     selectedRequiredLabels.join(', '),
@@ -318,9 +396,9 @@ export const VoiceOrderPage = () => {
     .join(', ');
   const responseGuideText =
     dialogStep === 'confirm' && selectedMenu
-      ? confirmSummaryText
-      : dialogStep === 'option'
-      ? ''
+      ? requiredSummary?.message
+        ? `${requiredSummary.message} 이대로 주문하시겠습니까?`
+        : ''
       : lastResponse?.response ?? '';
   const responseGuideFocusKey = `${mode}-${dialogStep}-${sessionId ?? ''}-${lastResponse?.response ?? ''}-${
     requiredSummary?.message ?? ''
@@ -332,6 +410,8 @@ export const VoiceOrderPage = () => {
           .filter(Boolean)
           .join(', ')}를 말씀하시거나 선택해 주세요.`
       : '필수 옵션을 선택해 주세요.';
+  const shouldUseFrontendOptionGuide =
+    mode === 'order-dialog' && dialogStep === 'option' && !lastResponse?.response && !optionalChoiceStep;
 
   useEffect(() => {
     if (mode !== 'home') return;
@@ -339,26 +419,23 @@ export const VoiceOrderPage = () => {
     return () => clearTimeout(timer);
   }, [mode]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (mode !== 'order-dialog' || !responseGuideText) return;
     if (lastResponseGuideFocusKeyRef.current === responseGuideFocusKey) return;
     lastResponseGuideFocusKeyRef.current = responseGuideFocusKey;
 
-    const guideTimer = setTimeout(() => responseGuideRef.current?.focus(), 0);
-    return () => {
-      clearTimeout(guideTimer);
-    };
+    responseGuideRef.current?.focus({ preventScroll: true });
   }, [dialogStep, mode, responseGuideFocusKey, responseGuideText]);
 
   useEffect(() => {
-    if (mode !== 'order-dialog' || dialogStep !== 'option') return;
+    if (!shouldUseFrontendOptionGuide) return;
     const focusKey = `${selectedMenu ?? ''}`;
     if (lastOptionGuideFocusKeyRef.current === focusKey) return;
     lastOptionGuideFocusKeyRef.current = focusKey;
 
     const timer = setTimeout(() => optionGuideRef.current?.focus(), 0);
     return () => clearTimeout(timer);
-  }, [dialogStep, mode, selectedMenu]);
+  }, [selectedMenu, shouldUseFrontendOptionGuide]);
 
   useEffect(() => {
     if (mode !== 'order-dialog' || dialogStep !== 'input') return;
@@ -526,19 +603,15 @@ export const VoiceOrderPage = () => {
       input = getConfirmReply(lastResponse);
     }
 
+    const optimisticValue = getRequiredCandidateValueForChoice(lastResponse, input);
     const optimisticSlotName = options.optimisticSlotName ?? getRequiredSlotNameForChoice(lastResponse, input);
     const nextOptimisticRequiredOptions = optimisticSlotName
-      ? { ...optimisticRequiredOptions, [optimisticSlotName]: input }
+      ? { ...optimisticRequiredOptions, [optimisticSlotName]: optimisticValue }
       : optimisticRequiredOptions;
-    const remainingRequiredOptionsAfterOptimistic = getMissingRequiredOptionNames(
-      lastResponse,
-      nextOptimisticRequiredOptions,
-    );
-    const shouldShowProcessingNotice =
-      dialogStep !== 'option' || !optimisticSlotName || remainingRequiredOptionsAfterOptimistic.length === 0;
+    const shouldShowProcessingNotice = dialogStep !== 'option' || !optimisticSlotName;
 
     setIsSubmitting(true);
-    clearTransientAnnouncements();
+    if (!optimisticSlotName) clearTransientAnnouncements();
     if (shouldShowProcessingNotice) startProcessingNotice();
     try {
       await ensureMenuCache();
@@ -565,15 +638,6 @@ export const VoiceOrderPage = () => {
         return { ...current, ...nextOptimisticRequiredOptions, ...responseSelections };
       });
 
-      if (
-        dialogStep === 'option' &&
-        optimisticSlotName &&
-        remainingRequiredOptionsAfterOptimistic.length > 0
-      ) {
-        window.setTimeout(() => {
-          announceOrderDetail(`${remainingRequiredOptionsAfterOptimistic.join(', ')}도 선택해 주세요.`, 2200);
-        }, 0);
-      }
     } catch (error) {
       stopProcessingNotice();
       console.error('주문 API 호출 실패:', error);
@@ -832,6 +896,76 @@ export const VoiceOrderPage = () => {
     }
   };
 
+  const ensureOptionalOptions = async () => {
+    if (!currentMenuId) return null;
+    if (optionalOptions?.menuId === currentMenuId) return optionalOptions;
+
+    startProcessingNotice();
+    try {
+      const data = await fetchMenuOptionalOptions(currentMenuId);
+      stopProcessingNotice();
+      setOptionalOptions(data);
+      return data;
+    } catch (error) {
+      stopProcessingNotice();
+      console.error('선택 옵션 조회 API 호출 실패:', error);
+      return null;
+    }
+  };
+
+  const handleConfirmTextSubmit = async (text: string) => {
+    if (isSubmitting) return;
+    const input = text.trim();
+    if (!input) return;
+
+    if (input.includes('주문') || input.includes('확인') || input.includes('완료')) {
+      submitOrderText(input);
+      return;
+    }
+
+    const data = await ensureOptionalOptions();
+    const matchedOption = findOptionalOptionByText(data, input);
+    if (matchedOption) {
+      await handleOptionalOptionSelect(matchedOption.group, matchedOption.item.optionItemId);
+      return;
+    }
+
+    submitOrderText(input);
+  };
+
+  const handleRequiredOptionSelect = (slot: OptionSlot, candidateName: string) => {
+    const slotName = slot.name ?? '';
+    if (!slotName) return;
+
+    const nextSelections = {
+      ...optimisticRequiredOptions,
+      [slotName]: candidateName,
+    };
+    setOptimisticRequiredOptions(nextSelections);
+    announceOrderDetail('선택되었습니다.', 1000);
+
+    const allRequiredSelected = visibleRequiredSlots.every((requiredSlot) => {
+      if (!requiredSlot.name) return true;
+      return Boolean(nextSelections[requiredSlot.name] || getSelectedOptionValue(requiredSlot));
+    });
+    if (!allRequiredSelected) return;
+
+    const combinedInput = visibleRequiredSlots
+      .map((requiredSlot) =>
+        requiredSlot.name ? nextSelections[requiredSlot.name] || getSelectedOptionValue(requiredSlot) : null,
+      )
+      .filter(Boolean)
+      .join(' ');
+    if (!combinedInput) return;
+
+    window.setTimeout(() => {
+      announceOrderDetail('처리 중입니다.', 1800);
+    }, 1050);
+    window.setTimeout(() => {
+      submitOrderText(combinedInput, sessionId, { preserveInput: true });
+    }, 1450);
+  };
+
   const groupedMenus = useMemo(() => {
     const groups: [string, MenuInfo[]][] = [];
     if (!menuCache) return groups;
@@ -956,7 +1090,11 @@ export const VoiceOrderPage = () => {
     const isRecommendationInput = dialogStep === 'recommend-input';
     const isRecommendationResult = dialogStep === 'recommend';
     const isConfirm = dialogStep === 'confirm';
-    const textSubmit = isRecommendationInput ? showRecommendations : (text: string) => submitOrderText(text);
+    const textSubmit = isRecommendationInput
+      ? showRecommendations
+      : isConfirm
+      ? handleConfirmTextSubmit
+      : (text: string) => submitOrderText(text);
     const commandInputLabel =
       dialogStep === 'option' || dialogStep === 'confirm'
         ? ''
@@ -978,7 +1116,7 @@ export const VoiceOrderPage = () => {
               {responseGuideText}
             </p>
           )}
-          {dialogStep === 'option' && (
+          {shouldUseFrontendOptionGuide && (
             <p ref={optionGuideRef} tabIndex={0} className="sr-only">
               {optionGuideText}
             </p>
@@ -1047,10 +1185,29 @@ export const VoiceOrderPage = () => {
             </div>
           )}
 
-          {dialogStep === 'option' && (
+          {dialogStep === 'option' && (optionalChoiceStep || visibleRequiredSlots.length > 0) && (
             <div className="mt-4 grid gap-3">
-              <p className="text-lg font-black text-blue-700">필수 옵션</p>
-              {requiredSlots.map((slot) => {
+              <p className="text-lg font-black text-blue-700">
+                {optionalChoiceStep ? '선택 옵션' : '필수 옵션'}
+              </p>
+              {optionalChoiceStep && (
+                <div className="rounded-xl bg-white/95 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.09)]">
+                  <div className="grid gap-2">
+                    {quickReplies.map((reply) => (
+                      <button
+                        key={reply}
+                        type="button"
+                        onClick={() => submitOrderText(reply, sessionId, { preserveInput: true })}
+                        aria-label={reply === '없음' ? '추가 옵션 없음' : reply}
+                        className="min-h-14 rounded-xl border-2 border-blue-100 bg-white px-4 text-left text-base font-black text-slate-950 shadow-[0_12px_28px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+                      >
+                        {reply}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!optionalChoiceStep && visibleRequiredSlots.map((slot) => {
                 const choices = slot.candidates?.filter((candidate) => candidate.name) ?? [];
                 const slotName = slot.name ?? '';
                 return (
@@ -1072,16 +1229,7 @@ export const VoiceOrderPage = () => {
                           <button
                             key={candidate.name}
                             type="button"
-                            onClick={() => {
-                              setOptimisticRequiredOptions((current) => ({
-                                ...current,
-                                [slotName]: candidate.name,
-                              }));
-                              submitOrderText(candidate.name, sessionId, {
-                                optimisticSlotName: slotName,
-                                preserveInput: true,
-                              });
-                            }}
+                            onClick={() => handleRequiredOptionSelect(slot, candidate.name)}
                             aria-label={label}
                             className={`min-h-14 rounded-xl border-2 px-3 text-center text-base font-black shadow-[0_12px_28px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-300 ${
                               selected
