@@ -55,6 +55,17 @@ export const fetchRecommendations = async (
   return response.data;
 };
 
+export const fetchLlmRecommendations = async (
+  text: string,
+  storeId = DEFAULT_RESTAURANT_ID,
+): Promise<RecommendApiResponse> => {
+  const response = await apiClient.post<RecommendApiResponse>('/api/recommend/llm', {
+    text,
+    storeId,
+  });
+  return response.data;
+};
+
 export const fetchRecommendHints = async (
   storeId = DEFAULT_RESTAURANT_ID,
 ): Promise<RecommendHintListResponse> => {

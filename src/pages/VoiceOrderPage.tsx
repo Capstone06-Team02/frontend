@@ -4,6 +4,7 @@ import { AppHeader } from '../components/AppHeader';
 import { CompletePage } from './CompletePage';
 import {
   cacheRestaurantMenus,
+  fetchLlmRecommendations,
   fetchMenuOptionalOptions,
   fetchRecommendHints,
   fetchRecommendations,
@@ -505,14 +506,14 @@ export const VoiceOrderPage = () => {
     window.setTimeout(() => setOrderDetailAnnouncement(''), clearDelay);
   };
 
-  const startProcessingNotice = () => {
+  const startProcessingNotice = (message = '처리 중입니다. 잠시만 기다려 주세요.') => {
     if (processingNoticeTimerRef.current) {
       window.clearTimeout(processingNoticeTimerRef.current);
     }
     processingNoticeVisibleRef.current = false;
     processingNoticeTimerRef.current = window.setTimeout(() => {
       processingNoticeVisibleRef.current = true;
-      setOrderDetailAnnouncement('처리 중입니다. 잠시만 기다려 주세요.');
+      setOrderDetailAnnouncement(message);
     }, 800);
   };
 
@@ -663,10 +664,10 @@ export const VoiceOrderPage = () => {
 
     setIsSubmitting(true);
     announceImmediateFeedback('추천 메뉴를 찾고 있습니다.');
-    startProcessingNotice();
+    startProcessingNotice('추천 메뉴를 찾는 중입니다. 잠시만 기다려 주세요.');
     try {
       await ensureMenuCache();
-      const data = await fetchRecommendations(input, RESTAURANT_ID);
+      const data = await fetchLlmRecommendations(input, RESTAURANT_ID);
       stopProcessingNotice();
       const replies = data.recommendations.map((menu) => menu.name).filter(Boolean);
       setRecommendMenus(data.recommendations);
@@ -685,7 +686,7 @@ export const VoiceOrderPage = () => {
     } catch (error) {
       stopProcessingNotice();
       console.error('추천 API 호출 실패:', error);
-      setOrderDetailAnnouncement('추천 메뉴를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+      setOrderDetailAnnouncement('죄송합니다. 다시 말씀해주세요.');
     } finally {
       setIsSubmitting(false);
     }
