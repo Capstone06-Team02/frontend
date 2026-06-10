@@ -29,7 +29,7 @@ import { wantsRecommendation } from '../utils/cafeOrder';
 import { formatPrice } from '../utils/format';
 import { normalizeOrderText } from '../utils/voice';
 
-type ScreenMode = 'home' | 'featured-menu' | 'full-menu' | 'order-dialog';
+type ScreenMode = 'home' | 'featured-menu' | 'category-select' | 'category-menu' | 'full-menu' | 'order-dialog';
 type DialogStep = 'input' | 'recommend-input' | 'recommend' | 'option' | 'confirm' | 'complete' | 'continue';
 type ViewSnapshot = {
   lastResponse: OrderApiResponse | null;
@@ -276,6 +276,7 @@ export const VoiceOrderPage = () => {
   const [orderDetailAnnouncement, setOrderDetailAnnouncement] = useState('');
   const [optionDescription, setOptionDescription] = useState('');
   const [showOptionalOptions, setShowOptionalOptions] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const homeGuideRef = useRef<HTMLParagraphElement>(null);
   const responseGuideRef = useRef<HTMLParagraphElement>(null);
@@ -283,6 +284,7 @@ export const VoiceOrderPage = () => {
   const firstFullMenuButtonRef = useRef<HTMLButtonElement>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
   const featuredGuideRef = useRef<HTMLParagraphElement>(null);
+  const categorySelectGuideRef = useRef<HTMLParagraphElement>(null);
   const lastOptionGuideFocusKeyRef = useRef('');
   const lastResponseGuideFocusKeyRef = useRef('');
   const processingNoticeTimerRef = useRef<number | null>(null);
@@ -369,6 +371,12 @@ export const VoiceOrderPage = () => {
   useEffect(() => {
     if (mode !== 'featured-menu') return;
     const timer = setTimeout(() => featuredGuideRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'category-select') return;
+    const timer = setTimeout(() => categorySelectGuideRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [mode]);
 
@@ -478,6 +486,7 @@ export const VoiceOrderPage = () => {
     setSelectedOptionalOptions([]);
     setOptimisticRequiredOptions({});
     setRecommendMenus([]);
+    setSelectedCategory(null);
   };
 
   const goBack = () => {
@@ -685,6 +694,30 @@ export const VoiceOrderPage = () => {
       stopProcessingNotice();
       setIsSubmitting(false);
     }
+  };
+
+  const showCategoryBoard = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    announceImmediateFeedback('카테고리를 불러오고 있습니다.');
+    startProcessingNotice();
+    try {
+      await ensureMenuCache();
+      stopProcessingNotice();
+      pushCurrentView();
+      clearTransientAnnouncements();
+      setMode('category-select');
+    } finally {
+      stopProcessingNotice();
+      setIsSubmitting(false);
+    }
+  };
+
+  const showCategoryMenus = (categoryName: string) => {
+    setSelectedCategory(categoryName);
+    pushCurrentView();
+    clearTransientAnnouncements();
+    setMode('category-menu');
   };
 
   const showFullMenuBoard = async () => {
@@ -903,11 +936,77 @@ export const VoiceOrderPage = () => {
           </div>
           <button
             type="button"
+            onClick={showCategoryBoard}
+            className="mt-3 min-h-14 rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+          >
+            카테고리 보기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'category-select') {
+    return (
+      <div className="voisk-screen-bg text-slate-950">
+        <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
+          <AppHeader onBack={goBack} subtitle={RESTAURANT_DISPLAY_NAME} />
+          <p ref={categorySelectGuideRef} tabIndex={0} className="sr-only">
+            카테고리 목록입니다. 원하시는 카테고리를 선택하거나 하단에서 전체 메뉴를 확인하실 수 있습니다.
+          </p>
+          <p className="mb-3 text-2xl font-black text-blue-700">카테고리</p>
+          <div aria-live="polite" className="sr-only">{orderDetailAnnouncement}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="grid gap-2">
+              {groupedMenus.map(([categoryName]) => (
+                <button
+                  key={categoryName}
+                  type="button"
+                  onClick={() => showCategoryMenus(categoryName)}
+                  className="rounded-lg bg-white/95 px-5 py-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+                >
+                  <span className="block text-xl font-black text-slate-950">{categoryName}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
             onClick={showFullMenuBoard}
             className="mt-3 min-h-14 rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-300"
           >
             전체 메뉴 보기
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'category-menu') {
+    const categoryMenus = groupedMenus.find(([name]) => name === selectedCategory)?.[1] ?? [];
+    return (
+      <div className="voisk-screen-bg text-slate-950">
+        <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
+          <AppHeader onBack={goBack} subtitle={selectedCategory ?? '메뉴'} />
+          <p className="mb-3 text-2xl font-black text-blue-700">{selectedCategory}</p>
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="grid gap-2">
+              {categoryMenus.map((menu) => (
+                <button
+                  key={menu.menuId}
+                  type="button"
+                  onClick={() => handleMenuSelect(menu.name)}
+                  aria-label={`${menu.name} ${formatPrice(menu.price)}`}
+                  className="rounded-lg bg-white/95 px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+                >
+                  <span className="block text-xl font-black leading-tight text-slate-950">{menu.name}</span>
+                  <span aria-hidden="true" className="mt-1 block text-sm font-bold text-slate-500">
+                    {formatPrice(menu.price)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
