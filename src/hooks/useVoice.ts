@@ -68,34 +68,27 @@ export const useVoice = () => {
   const speak = useCallback((message: string, onEnd?: () => void) => {
     window.speechSynthesis.cancel();
 
-    // VoiceOver 테스트 중에는 앱 자체 TTS를 꺼서 음성이 겹치지 않게 둔다.
-    void message;
-    void findStoredVoice;
-    void getStoredRate;
-    if (onEnd) window.setTimeout(onEnd, 0);
+    const utterance = new SpeechSynthesisUtterance(message);
+    const selectedVoice = findStoredVoice();
+    if (selectedVoice) utterance.voice = selectedVoice;
 
-    // const utterance = new SpeechSynthesisUtterance(message);
-    // const selectedVoice = findStoredVoice();
-    // if (selectedVoice) utterance.voice = selectedVoice;
-    //
-    // utterance.lang = 'ko-KR';
-    // utterance.rate = getStoredRate();
-    //
-    // // iOS Safari에서 긴 문장 TTS가 멈추는 버그 방지
-    // const resumeInterval = setInterval(() => {
-    //   if (!window.speechSynthesis.speaking) {
-    //     clearInterval(resumeInterval);
-    //     return;
-    //   }
-    //   window.speechSynthesis.resume();
-    // }, 5000);
-    //
-    // utterance.onend = () => {
-    //   clearInterval(resumeInterval);
-    //   if (onEnd) onEnd();
-    // };
-    //
-    // window.speechSynthesis.speak(utterance);
+    utterance.lang = 'ko-KR';
+    utterance.rate = getStoredRate();
+
+    const resumeInterval = setInterval(() => {
+      if (!window.speechSynthesis.speaking) {
+        clearInterval(resumeInterval);
+        return;
+      }
+      window.speechSynthesis.resume();
+    }, 5000);
+
+    utterance.onend = () => {
+      clearInterval(resumeInterval);
+      if (onEnd) onEnd();
+    };
+
+    window.speechSynthesis.speak(utterance);
   }, []);
 
   useEffect(() => {

@@ -5,6 +5,9 @@ export const normalizeOrderText = (rawText: string) => {
     return '네';
   }
 
+  if (trimmedText === '뜨겁게') return '핫';
+  if (trimmedText === '차갑게') return '아이스';
+
   const numberMap: { [key: string]: string } = {
     한: '1',
     두: '2',
