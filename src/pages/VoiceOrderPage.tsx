@@ -207,6 +207,15 @@ const getRequiredOptionSelectionMap = (data: OrderApiResponse | null) =>
       return acc;
     }, {});
 
+const getMissingRequiredOptionNames = (
+  data: OrderApiResponse | null,
+  optimisticSelections: Record<string, string>,
+): string[] =>
+  getSlotOptionSlots(data)
+    .filter((slot) => slot.required && slot.name)
+    .filter((slot) => !getSelectedOptionValue(slot) && !optimisticSelections[slot.name!])
+    .map((slot) => slot.name!);
+
 const normalizeOptionMatchText = (text: string) =>
   text
     .toLowerCase()
@@ -1487,7 +1496,10 @@ export const VoiceOrderPage = () => {
                   </p>
                 )}
                 {selectedOptionalLabels.length > 0 && (
-                  <p aria-hidden="true" className="mt-2 text-base font-black text-slate-400">
+                  <p
+                    tabIndex={0}
+                    className="mt-2 text-base font-black text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-300 rounded"
+                  >
                     추가 옵션 {selectedOptionalLabels.join(', ')}
                   </p>
                 )}
