@@ -38,6 +38,7 @@ type ViewSnapshot = {
 };
 type SubmitOrderOptions = {
   optimisticSlotName?: string;
+  optimisticSlotValue?: string;
   preserveInput?: boolean;
 };
 type HomeAction = {
@@ -85,7 +86,7 @@ const HOME_ACTIONS: HomeAction[] = [
 
 const getReplies = (data: OrderApiResponse | null) => data?.quickReplies?.filter(Boolean) ?? [];
 const getConfirmReply = (data: OrderApiResponse | null) =>
-  getReplies(data).find((reply) => ['확인', '네', '맞습니다', '주문', '주문할게요'].includes(reply)) ?? '확인';
+  getReplies(data).find((reply) => ['확인', '네', '맞습니다', '맞아요', '맞아', '응'].includes(reply)) ?? '확인';
 const getPrimaryOrderItem = (data: OrderApiResponse | null) => data?.slots?.items?.[0] ?? null;
 const getSlotMenu = (data: OrderApiResponse | null) =>
   getPrimaryOrderItem(data)?.menu ?? data?.slots?.menu ?? null;
@@ -293,15 +294,7 @@ export const VoiceOrderPage = () => {
   const viewHistoryRef = useRef<ViewSnapshot[]>([]);
   const { speak } = useVoice();
 
-  const dialogStep: DialogStep = (() => {
-    const step = getDialogStep(lastResponse);
-    if (step !== 'option') return step;
-    const missing = getMissingRequiredOptionNames(lastResponse, optimisticRequiredOptions);
-    if (missing.length === 0 && Boolean(getSlotMenu(lastResponse)) && getSlotQuantity(lastResponse) != null) {
-      return 'confirm';
-    }
-    return step;
-  })();
+  const dialogStep = getDialogStep(lastResponse);
   const quickReplies = getReplies(lastResponse);
   const selectedMenu = getSlotMenu(lastResponse);
   const totalPrice = getSlotTotalPrice(lastResponse);
@@ -523,13 +516,14 @@ export const VoiceOrderPage = () => {
       showRecommendations(input);
       return;
     }
-    if (dialogStep === 'confirm' && input.includes('주문')) {
+    if (dialogStep === 'confirm') {
       input = getConfirmReply(lastResponse);
     }
 
     const optimisticSlotName = options.optimisticSlotName ?? getRequiredSlotNameForChoice(lastResponse, input);
+    const optimisticSlotValue = options.optimisticSlotValue ?? input;
     const nextOptimisticRequiredOptions = optimisticSlotName
-      ? { ...optimisticRequiredOptions, [optimisticSlotName]: input }
+      ? { ...optimisticRequiredOptions, [optimisticSlotName]: optimisticSlotValue }
       : optimisticRequiredOptions;
     const remainingRequiredOptionsAfterOptimistic = getMissingRequiredOptionNames(
       lastResponse,
@@ -1170,12 +1164,14 @@ export const VoiceOrderPage = () => {
                             key={candidate.name}
                             type="button"
                             onClick={() => {
+                              const submitText = candidate.defaultSelected ? '변경 안함' : candidate.name;
                               setOptimisticRequiredOptions((current) => ({
                                 ...current,
                                 [slotName]: candidate.name,
                               }));
-                              submitOrderText(candidate.name, sessionId, {
+                              submitOrderText(submitText, sessionId, {
                                 optimisticSlotName: slotName,
+                                optimisticSlotValue: candidate.name,
                                 preserveInput: true,
                               });
                             }}
