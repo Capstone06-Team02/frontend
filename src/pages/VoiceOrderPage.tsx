@@ -1297,7 +1297,10 @@ export const VoiceOrderPage = () => {
                   </p>
                 )}
                 {selectedOptionalLabels.length > 0 && (
-                  <p aria-hidden="true" className="mt-2 text-base font-black text-slate-400">
+                  <p
+                    tabIndex={0}
+                    className="mt-2 text-base font-black text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-300 rounded"
+                  >
                     추가 옵션 {selectedOptionalLabels.join(', ')}
                   </p>
                 )}
