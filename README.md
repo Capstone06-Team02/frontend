@@ -29,7 +29,6 @@
 | HTTP 클라이언트 | Axios |
 | 배포 | Vercel |
 
-> 백엔드 API 주소는 개발 환경에서는 Vite proxy, 배포 환경에서는 Vercel rewrites를 통해 `https://api.voisk.cloud`로 연결합니다.
 
 ---
 
