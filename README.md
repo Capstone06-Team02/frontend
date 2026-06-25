@@ -8,13 +8,13 @@
 
 | 기능 | 설명 |
 | --- | --- |
-| 접근성 중심 주문 | iOS VoiceOver와 텍스트 필드 받아쓰기를 기준으로 메뉴 선택, 옵션 입력, 주문 확인 흐름을 제공합니다. |
-| 대화형 주문 | `/api/order/speak` 응답의 `response`, `quickReplies`, `slots`, `slotsComplete`, `intent`를 기준으로 현재 주문 단계를 판단합니다. |
-| 메뉴판 조회 | 매장 메뉴 캐시 API를 통해 메뉴, 카테고리, 옵션 그룹, 옵션 아이템 정보를 받아 화면에 구성합니다. |
-| 메뉴 추천 | 직접 추천 문장을 입력하거나 추천 힌트 버튼을 선택해 백엔드 추천 API와 연동합니다. |
+| 접근성 중심 주문 | VoiceOver와 텍스트 필드 받아쓰기를 기준으로 메뉴 선택, 옵션 입력, 주문 확인 흐름을 제공 |
+| 대화형 주문 | `/api/order/speak` 응답의 `response`, `quickReplies`, `slots`, `slotsComplete`, `intent`를 기준으로 현재 주문 단계를 판단 |
+| 메뉴판 조회 | 매장 메뉴 캐시 API를 통해 메뉴, 카테고리, 옵션 그룹, 옵션 아이템 정보를 받아 화면에 구성 |
+| 메뉴 추천 | 직접 추천 문장을 입력하거나 후보 추천 메뉴들을 선택해 백엔드 추천 API와 연동 |
 | 필수 옵션 선택 | 백엔드가 요청하는 필수 옵션을 한 번에 모두 보여주지 않고, 현재 선택해야 하는 옵션 후보만 단계적으로 안내합니다. |
 | 주문 확인 및 완료 | 선택된 메뉴, 필수 옵션, 가격 요약을 확인한 뒤 최종 주문 완료 화면으로 이동합니다. |
-| 모바일 배포 | Vercel rewrites를 사용해 프론트엔드 라우팅과 `/api` 프록시를 HTTPS 환경에서 처리합니다. |
+| 배포 | Vercel rewrites를 사용해 프론트엔드 라우팅과 `/api` 프록시를 HTTPS 환경에서 처리합니다. |
 
 ---
 
@@ -23,12 +23,10 @@
 | 구분 | 기술 |
 | --- | --- |
 | 언어 | TypeScript |
-| 프레임워크 | React 19 |
+| 프레임워크 | React |
 | 빌드 도구 | Vite |
-| 스타일 | Tailwind CSS, CSS |
+| 스타일 | Tailwind CSS |
 | HTTP 클라이언트 | Axios |
-| 아이콘 | lucide-react |
-| 음성 기능 | Web Speech API, SpeechSynthesis, iOS VoiceOver/받아쓰기 고려 |
 | 배포 | Vercel |
 
 > 백엔드 API 주소는 개발 환경에서는 Vite proxy, 배포 환경에서는 Vercel rewrites를 통해 `https://api.voisk.cloud`로 연결합니다.
@@ -76,23 +74,11 @@ Base path: `/api`
 | 옵션 | `GET /api/order/menus/{menuId}/optional-options` | 특정 메뉴의 선택 옵션 목록을 조회합니다. |
 | 옵션 | `POST /api/order/option-selection` | 사용자가 고른 옵션을 현재 주문 세션에 반영합니다. |
 
-프론트엔드는 주문 상태를 자체적으로 추측하기보다 백엔드가 내려주는 `intent`, `slots`, `quickReplies`, `slotsComplete` 값을 기준으로 다음 화면을 결정합니다.
+프론트엔드는 백엔드가 내려주는 `intent`, `slots`, `quickReplies`, `slotsComplete` 값을 기준으로 화면을 결정합니다.
 
 ---
 
-## 주문 흐름
-
-1. 사용자는 첫 화면에서 메뉴판, 메뉴 추천, 즉시 주문 중 하나를 선택합니다.
-2. 텍스트 필드에 포커스를 두고 iPhone 받아쓰기로 주문 문장이나 추천 문장을 입력합니다.
-3. 프론트엔드는 입력값을 `/api/order/speak` 또는 추천 API로 전송합니다.
-4. 백엔드 응답에 따라 메뉴 선택, 추천 결과, 필수 옵션 선택, 주문 확인 단계로 화면을 전환합니다.
-5. 필수 옵션은 `quickReplies`와 `slots.items[0].optionSlots[].candidates`를 비교해 현재 필요한 후보만 표시합니다.
-6. 주문 확인 화면에서는 메뉴명, 수량, 필수 옵션, 가격 안내를 먼저 읽을 수 있게 구성합니다.
-7. 주문 완료 시 완료 문구와 완료 화면을 표시합니다.
-
----
-
-## 접근성 설계 원칙
+## 설계 원칙
 
 | 원칙 | 적용 내용 |
 | --- | --- |
@@ -105,61 +91,11 @@ Base path: `/api`
 
 ---
 
-## 개선 과정에서 해결한 문제
+## 해결한 문제
 
 | 문제 | 해결 |
 | --- | --- |
 | VoiceOver와 자체 TTS 충돌 | 모든 안내를 음성으로 반복하지 않고, 필요한 시점에만 짧게 안내하도록 조정했습니다. |
-| 마이크 버튼 중심 UX의 혼란 | Web Speech API 중심 구조에서 iOS 텍스트 필드 받아쓰기 중심 구조로 변경했습니다. |
+| 마이크 기능 제거 | Web Speech API 중심 구조에서 iOS 텍스트 필드 받아쓰기 중심 구조로 변경했습니다. |
 | 포커스 튐 현상 | 화면별 첫 안내 문구와 입력 요소의 순서를 조정해 VoiceOver 탐색 흐름을 안정화했습니다. |
 | 옵션 선택 흐름 복잡도 | 필수 옵션을 한 화면에 모두 노출하지 않고 백엔드 응답 순서에 맞춰 단계적으로 표시했습니다. |
-| 백엔드 응답 구조 변경 | `slots.menu`, `slots.quantity` 중심 처리에서 `slots.items[0]` 중심 처리로 수정했습니다. |
-| API 요청 분산 | 주문, 추천, 메뉴, 옵션 관련 요청을 `src/api/order.ts`에 모아 화면 컴포넌트의 API URL 반복을 줄였습니다. |
-
----
-
-## 실행 방법
-
-```bash
-npm install
-npm run dev
-```
-
-개발 서버는 기본적으로 `http://localhost:5173`에서 실행됩니다. 로컬 개발 중 `/api` 요청은 `vite.config.ts`의 proxy 설정을 통해 `https://api.voisk.cloud`로 전달됩니다.
-
-### 환경 변수
-
-```env
-VITE_API_BASE_URL=https://api.voisk.cloud
-VITE_STORE_ID=1
-VITE_RESTAURANT_ID=1
-```
-
-현재 API 클라이언트는 같은 origin의 `/api` 경로를 사용하므로, 로컬에서는 Vite proxy가, 배포에서는 Vercel rewrite가 백엔드 연결을 담당합니다.
-
----
-
-## 빌드 및 검사
-
-```bash
-npm run build
-npm run lint
-npm run preview
-```
-
-| 명령어 | 설명 |
-| --- | --- |
-| `npm run dev` | Vite 개발 서버 실행 |
-| `npm run build` | TypeScript 빌드 후 배포용 정적 파일 생성 |
-| `npm run lint` | ESLint 검사 |
-| `npm run preview` | 빌드 결과 미리보기 |
-
----
-
-## 향후 측정이 필요한 항목
-
-1. 주문 시작부터 주문 완료까지 평균 소요 시간
-2. VoiceOver 사용 시 필수 옵션 선택 완료까지 평균 스와이프 횟수
-3. 받아쓰기 재시도율
-4. 추천 메뉴 선택 후 주문 완료까지 걸리는 평균 시간
-5. 텍스트 입력 전송 후 백엔드 응답까지 평균 시간
