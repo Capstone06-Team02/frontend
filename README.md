@@ -1,73 +1,165 @@
-# React + TypeScript + Vite
+# Voisk Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+시각장애인 사용자가 모바일 환경에서 iPhone VoiceOver와 받아쓰기 기능을 활용해 카페 메뉴를 확인하고 주문할 수 있도록 만든 Voisk 프론트엔드입니다. 화면보다 음성 안내, 포커스 순서, 즉각적인 선택 피드백을 우선으로 두고 주문 흐름을 구성했습니다.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 주요 기능
 
-## React Compiler
+| 기능 | 설명 |
+| --- | --- |
+| 접근성 중심 주문 | iOS VoiceOver와 텍스트 필드 받아쓰기를 기준으로 메뉴 선택, 옵션 입력, 주문 확인 흐름을 제공합니다. |
+| 대화형 주문 | `/api/order/speak` 응답의 `response`, `quickReplies`, `slots`, `slotsComplete`, `intent`를 기준으로 현재 주문 단계를 판단합니다. |
+| 메뉴판 조회 | 매장 메뉴 캐시 API를 통해 메뉴, 카테고리, 옵션 그룹, 옵션 아이템 정보를 받아 화면에 구성합니다. |
+| 메뉴 추천 | 직접 추천 문장을 입력하거나 추천 힌트 버튼을 선택해 백엔드 추천 API와 연동합니다. |
+| 필수 옵션 선택 | 백엔드가 요청하는 필수 옵션을 한 번에 모두 보여주지 않고, 현재 선택해야 하는 옵션 후보만 단계적으로 안내합니다. |
+| 주문 확인 및 완료 | 선택된 메뉴, 필수 옵션, 가격 요약을 확인한 뒤 최종 주문 완료 화면으로 이동합니다. |
+| 모바일 배포 | Vercel rewrites를 사용해 프론트엔드 라우팅과 `/api` 프록시를 HTTPS 환경에서 처리합니다. |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 기술 스택
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+| 구분 | 기술 |
+| --- | --- |
+| 언어 | TypeScript |
+| 프레임워크 | React 19 |
+| 빌드 도구 | Vite |
+| 스타일 | Tailwind CSS, CSS |
+| HTTP 클라이언트 | Axios |
+| 아이콘 | lucide-react |
+| 음성 기능 | Web Speech API, SpeechSynthesis, iOS VoiceOver/받아쓰기 고려 |
+| 배포 | Vercel |
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+> 백엔드 API 주소는 개발 환경에서는 Vite proxy, 배포 환경에서는 Vercel rewrites를 통해 `https://api.voisk.cloud`로 연결합니다.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 프로젝트 구조
+
+```text
+frontend/                         # Vite + React 프로젝트 루트
+├── public/                        # 정적 아이콘 및 favicon
+├── src/
+│   ├── api/                       # Axios 기반 백엔드 API 모듈
+│   │   ├── client.ts              # 공통 API 클라이언트
+│   │   ├── order.ts               # 주문, 메뉴, 옵션, 추천 API
+│   │   └── recommend.ts           # 추천 API 보조 모듈
+│   ├── assets/                    # 화면 이미지 리소스
+│   ├── components/                # 공통 UI 컴포넌트
+│   ├── constants/                 # 메뉴, 카페 옵션, 주문 상수
+│   ├── hooks/                     # 음성 인식/TTS 훅
+│   ├── pages/                     # 주문 단계별 화면
+│   ├── types/                     # API 응답 및 화면 타입
+│   └── utils/                     # 주문 파싱, 포맷팅, 음성 보조 로직
+├── vite.config.ts                 # 개발 서버 및 API proxy 설정
+├── vercel.json                    # Vercel SPA 라우팅 및 API rewrite
+└── package.json                   # 실행 스크립트 및 의존성
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+주요 화면 흐름은 `VoiceOrderPage`를 중심으로 구성되며, `/options`, `/confirm`, `/complete` 등 단계별 라우트는 URL path에 따라 `App.tsx`에서 분기합니다.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## API 개요
+
+Base path: `/api`
+
+| 리소스 | Endpoint | 설명 |
+| --- | --- | --- |
+| 주문 | `POST /api/order/speak` | 사용자의 주문 문장을 보내고 주문 세션, 응답 문구, 슬롯, 추천/확인 상태를 받습니다. |
+| 메뉴 | `POST /api/order/restaurants/{restaurantId}/menus/cache` | 매장의 메뉴판 데이터를 캐시하고 조회합니다. |
+| 추천 | `POST /api/recommend` | 사용자가 입력한 추천 문장을 기반으로 추천 메뉴를 받습니다. |
+| 추천 | `GET /api/recommend/hints` | 추천 힌트 버튼에 사용할 문구 목록을 조회합니다. |
+| 추천 | `POST /api/recommend/hints/{hintId}` | 선택한 추천 힌트에 맞는 추천 메뉴를 받습니다. |
+| 옵션 | `POST /api/order/required-option-summary` | 선택된 필수 옵션과 가격 요약 문구를 받습니다. |
+| 옵션 | `GET /api/order/menus/{menuId}/optional-options` | 특정 메뉴의 선택 옵션 목록을 조회합니다. |
+| 옵션 | `POST /api/order/option-selection` | 사용자가 고른 옵션을 현재 주문 세션에 반영합니다. |
+
+프론트엔드는 주문 상태를 자체적으로 추측하기보다 백엔드가 내려주는 `intent`, `slots`, `quickReplies`, `slotsComplete` 값을 기준으로 다음 화면을 결정합니다.
+
+---
+
+## 주문 흐름
+
+1. 사용자는 첫 화면에서 메뉴판, 메뉴 추천, 즉시 주문 중 하나를 선택합니다.
+2. 텍스트 필드에 포커스를 두고 iPhone 받아쓰기로 주문 문장이나 추천 문장을 입력합니다.
+3. 프론트엔드는 입력값을 `/api/order/speak` 또는 추천 API로 전송합니다.
+4. 백엔드 응답에 따라 메뉴 선택, 추천 결과, 필수 옵션 선택, 주문 확인 단계로 화면을 전환합니다.
+5. 필수 옵션은 `quickReplies`와 `slots.items[0].optionSlots[].candidates`를 비교해 현재 필요한 후보만 표시합니다.
+6. 주문 확인 화면에서는 메뉴명, 수량, 필수 옵션, 가격 안내를 먼저 읽을 수 있게 구성합니다.
+7. 주문 완료 시 완료 문구와 완료 화면을 표시합니다.
+
+---
+
+## 접근성 설계 원칙
+
+| 원칙 | 적용 내용 |
+| --- | --- |
+| 정보량 최소화 | 메뉴 카드와 주문 확인 화면에서는 메뉴명, 가격, 핵심 옵션 위주로 안내합니다. 긴 설명은 기본 흐름에서 분리했습니다. |
+| VoiceOver와 충돌 방지 | 자체 TTS를 과도하게 사용하지 않고, 스크린리더가 읽을 수 있는 라벨과 숨김 안내 문구를 활용합니다. |
+| 명확한 포커스 순서 | 화면 진입 시 먼저 읽어야 하는 안내와 실제 조작 요소의 순서를 분리해 좌우 스와이프 탐색 흐름을 맞췄습니다. |
+| 즉각적인 피드백 | 버튼 선택, 옵션 반영, API 대기, 주문 완료 상태를 짧은 문구로 알려 사용자가 입력 반영 여부를 알 수 있게 했습니다. |
+| 큰 터치 영역과 대비 | 모바일 화면에서 버튼을 크게 배치하고 텍스트 대비를 높여 저시력 사용자도 사용할 수 있게 했습니다. |
+| 입력 방식 병행 | 음성 받아쓰기와 버튼 직접 선택을 함께 제공해 사용자가 상황에 맞게 주문할 수 있도록 했습니다. |
+
+---
+
+## 개선 과정에서 해결한 문제
+
+| 문제 | 해결 |
+| --- | --- |
+| VoiceOver와 자체 TTS 충돌 | 모든 안내를 음성으로 반복하지 않고, 필요한 시점에만 짧게 안내하도록 조정했습니다. |
+| 마이크 버튼 중심 UX의 혼란 | Web Speech API 중심 구조에서 iOS 텍스트 필드 받아쓰기 중심 구조로 변경했습니다. |
+| 포커스 튐 현상 | 화면별 첫 안내 문구와 입력 요소의 순서를 조정해 VoiceOver 탐색 흐름을 안정화했습니다. |
+| 옵션 선택 흐름 복잡도 | 필수 옵션을 한 화면에 모두 노출하지 않고 백엔드 응답 순서에 맞춰 단계적으로 표시했습니다. |
+| 백엔드 응답 구조 변경 | `slots.menu`, `slots.quantity` 중심 처리에서 `slots.items[0]` 중심 처리로 수정했습니다. |
+| API 요청 분산 | 주문, 추천, 메뉴, 옵션 관련 요청을 `src/api/order.ts`에 모아 화면 컴포넌트의 API URL 반복을 줄였습니다. |
+
+---
+
+## 실행 방법
+
+```bash
+npm install
+npm run dev
 ```
+
+개발 서버는 기본적으로 `http://localhost:5173`에서 실행됩니다. 로컬 개발 중 `/api` 요청은 `vite.config.ts`의 proxy 설정을 통해 `https://api.voisk.cloud`로 전달됩니다.
+
+### 환경 변수
+
+```env
+VITE_API_BASE_URL=https://api.voisk.cloud
+VITE_STORE_ID=1
+VITE_RESTAURANT_ID=1
+```
+
+현재 API 클라이언트는 같은 origin의 `/api` 경로를 사용하므로, 로컬에서는 Vite proxy가, 배포에서는 Vercel rewrite가 백엔드 연결을 담당합니다.
+
+---
+
+## 빌드 및 검사
+
+```bash
+npm run build
+npm run lint
+npm run preview
+```
+
+| 명령어 | 설명 |
+| --- | --- |
+| `npm run dev` | Vite 개발 서버 실행 |
+| `npm run build` | TypeScript 빌드 후 배포용 정적 파일 생성 |
+| `npm run lint` | ESLint 검사 |
+| `npm run preview` | 빌드 결과 미리보기 |
+
+---
+
+## 향후 측정이 필요한 항목
+
+1. 주문 시작부터 주문 완료까지 평균 소요 시간
+2. VoiceOver 사용 시 필수 옵션 선택 완료까지 평균 스와이프 횟수
+3. 받아쓰기 재시도율
+4. 추천 메뉴 선택 후 주문 완료까지 걸리는 평균 시간
+5. 텍스트 입력 전송 후 백엔드 응답까지 평균 시간
