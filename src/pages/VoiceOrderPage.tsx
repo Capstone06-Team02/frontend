@@ -898,7 +898,7 @@ export const VoiceOrderPage = () => {
           </p>
           <p className="mb-3 text-2xl font-black text-blue-700">시그니처 메뉴</p>
           <div aria-live="polite" className="sr-only">{orderDetailAnnouncement}</div>
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5">
             <div className="grid gap-2">
               {featuredMenus.map((menu) => (
                 <button
@@ -952,7 +952,7 @@ export const VoiceOrderPage = () => {
           </p>
           <p className="mb-3 text-2xl font-black text-blue-700">카테고리</p>
           <div aria-live="polite" className="sr-only">{orderDetailAnnouncement}</div>
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5">
             <div className="grid gap-2">
               {groupedMenus.map(([categoryName], index) => (
                 <button
@@ -986,7 +986,7 @@ export const VoiceOrderPage = () => {
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={selectedCategory ?? '메뉴'} />
           <p className="mb-3 text-2xl font-black text-blue-700">{selectedCategory}</p>
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5">
             <div className="grid gap-2">
               {categoryMenus.map((menu) => (
                 <button
@@ -1017,7 +1017,7 @@ export const VoiceOrderPage = () => {
           <p ref={responseGuideRef} tabIndex={-1} className="sr-only">
             {`${RESTAURANT_DISPLAY_NAME} 전체 메뉴판입니다. 메뉴명과 가격을 확인한 뒤 선택해 주세요.`}
           </p>
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5">
             <div className="grid gap-4">
               {groupedMenus.map(([categoryName, menus]) => (
                 <div key={categoryName}>
