@@ -24,11 +24,11 @@ const HELP_ITEMS = [
 export const HelpPage = ({ speak }: PageWithSpeechProps) => {
   const [activeItem, setActiveItem] = useState('음성 주문 시작');
 
-  const activeClass = 'border-sky-700 bg-sky-100 shadow-md';
-  const inactiveClass = 'border-slate-300 bg-white shadow-sm';
+  const activeClass = 'border-line bg-surface shadow-md';
+  const inactiveClass = 'border-line bg-surface shadow-sm';
 
   return (
-    <div className="h-[calc(100dvh+96px)] overflow-hidden bg-slate-50 text-slate-950">
+    <div className="h-[calc(100dvh+96px)] overflow-hidden bg-page text-ink">
       <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-4 pt-[max(24px,env(safe-area-inset-top))]">
         <AppHeader
           onBack={() => {
@@ -38,9 +38,9 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
           subtitle="사용자 도움말"
         />
 
-        <section aria-live="polite" aria-atomic="true" className="mb-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
-          <p className="text-sm font-semibold text-slate-500">현재 선택</p>
-          <p className="text-xl font-black text-sky-900">{activeItem}</p>
+        <section aria-live="polite" aria-atomic="true" className="mb-3 rounded-lg border border-line bg-surface px-4 py-3">
+          <p className="text-sm font-semibold text-muted">현재 선택</p>
+          <p className="text-xl font-black text-accent">{activeItem}</p>
         </section>
 
         <section className="grid flex-1 gap-2" aria-label="도움말 목록">
@@ -54,13 +54,13 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
                   speak(`${item.title}. ${item.body}`);
                 }}
                 aria-label={`${item.title}. ${item.body}`}
-                className={`flex min-h-0 w-full items-center rounded-lg border-2 px-4 py-3 text-left focus:outline-none focus:ring-4 focus:ring-sky-300 ${
+                className={`flex min-h-0 w-full items-center rounded-lg border-2 px-4 py-3 text-left focus:outline-none focus:ring-4 focus:ring-focusring ${
                   activeItem === item.title ? activeClass : inactiveClass
                 }`}
               >
                 <span>
                   <span className="block text-xl font-black">{item.title}</span>
-                  <span className="mt-0.5 block text-sm font-semibold leading-snug text-slate-600">{item.body}</span>
+                  <span className="mt-0.5 block text-sm font-semibold leading-snug text-muted">{item.body}</span>
                 </span>
               </button>
           ))}
@@ -76,7 +76,7 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
             speak('접근성 설정으로 이동 버튼');
           }}
           aria-label="접근성 설정으로 이동"
-          className="mt-3 flex min-h-14 w-full items-center justify-center rounded-lg bg-sky-700 text-xl font-black text-white shadow-sm focus:outline-none focus:ring-4 focus:ring-sky-300"
+          className="mt-3 flex min-h-14 w-full items-center justify-center rounded-lg bg-strong text-xl font-black text-on-strong shadow-sm focus:outline-none focus:ring-4 focus:ring-focusring"
         >
           접근성 설정
         </button>

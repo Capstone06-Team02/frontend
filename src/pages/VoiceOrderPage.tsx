@@ -1,5 +1,5 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, CircleHelp, Coffee, Lightbulb, Send } from 'lucide-react';
+import { BookOpen, CircleHelp, Coffee, Contrast, Lightbulb, Send } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { CompletePage } from './CompletePage';
 import {
@@ -13,6 +13,7 @@ import {
   selectOrderOption,
   sendOrderText,
 } from '../api/order';
+import { useAccessibility } from '../hooks/useAccessibility';
 import { useVoice } from '../hooks/useVoice';
 import type {
   MenuCacheResponse,
@@ -293,6 +294,7 @@ export const VoiceOrderPage = () => {
   const immediateFeedbackTimerRef = useRef<number | null>(null);
   const viewHistoryRef = useRef<ViewSnapshot[]>([]);
   const { speak } = useVoice();
+  const { highContrast, setHighContrast } = useAccessibility();
 
   const dialogStep = getDialogStep(lastResponse);
   const quickReplies = getReplies(lastResponse);
@@ -1361,6 +1363,33 @@ export const VoiceOrderPage = () => {
                 <span className="block text-[1.45rem] font-black leading-tight">사용법</span>
                 <span aria-hidden="true" className="mt-1 block text-base font-black text-muted">
                   처음 이용하시면 먼저 들어보세요.
+                </span>
+              </span>
+            </button>
+            {/*
+              고대비 전환. 기존 항목 뒤에 두어 스와이프 순서 앞부분을 그대로 둔다.
+              상태 변경은 aria-pressed로 VoiceOver가 직접 알려주므로 speak()를
+              덧붙이지 않는다. 자체 TTS가 스크린리더 낭독과 겹치지 않게 하기 위해서다.
+            */}
+            <button
+              type="button"
+              onClick={() => setHighContrast(!highContrast)}
+              aria-pressed={highContrast}
+              aria-label={`고대비 화면 ${highContrast ? '켜짐' : '꺼짐'}`}
+              className={`relative flex min-h-20 items-center gap-4 overflow-hidden rounded-xl border-2 border-line px-6 text-left shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-focusring active:scale-[0.99] ${
+                highContrast ? 'bg-strong text-on-strong' : 'bg-surface text-accent'
+              }`}
+            >
+              <Contrast aria-hidden="true" className="shrink-0" size={32} />
+              <span className="relative">
+                <span className="block text-[1.45rem] font-black leading-tight">고대비 화면</span>
+                <span
+                  aria-hidden="true"
+                  className={`mt-1 block text-base font-black ${
+                    highContrast ? 'text-on-strong' : 'text-muted'
+                  }`}
+                >
+                  {highContrast ? '켜짐. 눌러서 끄기' : '꺼짐. 글자를 더 뚜렷하게 봅니다.'}
                 </span>
               </span>
             </button>
