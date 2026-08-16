@@ -73,7 +73,6 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
             window.location.href = '/accessibility';
           }}
           subtitle="음성 안내 목소리"
-          tone="light"
         />
 
         <section aria-live="polite" aria-atomic="true" className="mb-3 rounded-lg border border-slate-200 bg-white px-4 py-3">

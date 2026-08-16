@@ -44,7 +44,7 @@ export const CompletePage = ({
   };
 
   return (
-    <div className="voisk-screen-bg text-slate-950">
+    <div className="voisk-screen-bg text-ink">
       <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-6 pt-[max(24px,env(safe-area-inset-top))]">
 
         <AppHeader
@@ -62,8 +62,8 @@ export const CompletePage = ({
               type="button"
               onClick={onMicClick}
               aria-label="마이크"
-              className={`flex min-h-14 items-center justify-center gap-2 rounded-xl px-4 text-xl font-black shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99] ${
-                isListening ? 'bg-rose-100 text-rose-700' : 'bg-blue-700 text-white'
+              className={`flex min-h-14 items-center justify-center gap-2 rounded-xl px-4 text-xl font-black shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-focusring active:scale-[0.99] ${
+                isListening ? 'bg-rose-100 text-rose-700' : 'bg-strong text-on-strong'
               }`}
             >
               <Mic aria-hidden="true" size={24} />
@@ -73,7 +73,7 @@ export const CompletePage = ({
               type="button"
               onClick={replayGuide}
               aria-label="다시 듣기"
-              className="flex min-h-14 items-center justify-center rounded-xl bg-slate-950 px-4 text-xl font-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-blue-300 active:scale-[0.99]"
+              className="flex min-h-14 items-center justify-center rounded-xl bg-strong px-4 text-xl font-black text-on-strong shadow-[0_12px_28px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-4 focus:ring-focusring active:scale-[0.99]"
             >
               다시 듣기
             </button>
@@ -82,11 +82,11 @@ export const CompletePage = ({
 
         {/* 완료 아이콘 + 메시지 */}
         <div className="flex flex-1 flex-col items-center justify-center text-center" aria-live="polite" aria-atomic="true">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-blue-100 text-blue-700 shadow-[0_12px_40px_rgba(29,78,216,0.18)]">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-surface text-accent shadow-[0_12px_40px_rgba(29,78,216,0.18)]">
             <CheckCircle2 aria-hidden="true" size={52} />
           </div>
-          <p className="mt-6 text-3xl font-black leading-snug text-slate-950">주문이 완료되었어요!</p>
-          <p aria-hidden="true" className="mt-1 text-base font-black text-slate-500">
+          <p className="mt-6 text-3xl font-black leading-snug text-ink">주문이 완료되었어요!</p>
+          <p aria-hidden="true" className="mt-1 text-base font-black text-muted">
             {completionMessage}
           </p>
         </div>
@@ -103,7 +103,7 @@ export const CompletePage = ({
           }}
           onFocus={() => speak('처음 화면으로 돌아가기 버튼')}
           aria-label="처음 화면으로 돌아가기"
-          className="mt-6 flex min-h-16 w-full items-center justify-center rounded-lg bg-slate-950 text-xl font-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.24)] focus:outline-none focus:ring-4 focus:ring-blue-300"
+          className="mt-6 flex min-h-16 w-full items-center justify-center rounded-lg bg-strong text-xl font-black text-on-strong shadow-[0_18px_40px_rgba(15,23,42,0.24)] focus:outline-none focus:ring-4 focus:ring-focusring"
         >
           처음으로
         </button>

@@ -37,7 +37,6 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
             window.location.href = '/';
           }}
           subtitle="접근성 설정"
-          tone={highContrast ? 'contrast' : 'light'}
         />
 
         <section aria-live="polite" aria-atomic="true" className={`mb-3 rounded-lg border px-4 py-3 ${panelTone}`}>

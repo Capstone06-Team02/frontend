@@ -42,7 +42,6 @@ export const CartPage = ({ speak }: PageWithSpeechProps) => {
             window.location.href = '/options';
           }}
           subtitle="장바구니"
-          tone="light"
         />
 
         <button

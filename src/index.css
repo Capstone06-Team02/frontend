@@ -2,17 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * 색상 토큰
+ *
+ * 화면 색은 전부 여기서만 정의한다. 컴포넌트는 tailwind.config.js에 등록된
+ * 시맨틱 이름(surface/line/ink/muted/accent)만 쓰므로, 고대비 모드 전환은
+ * 아래 [data-contrast="high"] 블록에서 변수만 갈아끼우면 된다.
+ * 마크업을 조건부로 분기하지 않기 위한 구조다. (VoiceOver 포커스 순서 보존)
+ *
+ * 이 파일이나 tailwind.config.js를 고치면 개발 서버를 재시작해야 한다.
+ * Tailwind가 실행 중에는 설정 변경을 다시 읽지 않아, 여기서 만든 색상
+ * 유틸리티가 통째로 빠진 CSS가 그대로 서빙된다.
+ *
+ * 대비율은 흰 배경 기준. 저시력 사용자를 위해 본문은 AAA(7:1),
+ * 테두리·포커스 링 등 비텍스트 요소는 최소 3:1을 지킨다.
+ */
+:root {
+  --voisk-page: #eef2f7;
+  --voisk-surface: #ffffff;
+  /* 4.8:1 — 카드 경계 */
+  --voisk-line: #64748b;
+  /* 18.7:1 — 본문 */
+  --voisk-ink: #020617;
+  /* 10.2:1 — 가격 등 보조 정보 */
+  --voisk-muted: #334155;
+  /* 8.6:1 — 카테고리 머리말, 강조 */
+  --voisk-accent: #1e40af;
+  /* 8.6:1 — 포커스 링 */
+  --voisk-focus: #1e40af;
+  /* 주요 버튼 배경 */
+  --voisk-strong: #020617;
+  /* 주요 버튼 글자 */
+  --voisk-on-strong: #ffffff;
+}
+
+/*
+ * 고대비 모드: 검정 바탕 + 흰 본문 + 노란 강조.
+ * 저시력·눈부심 민감 사용자에게 가장 널리 쓰이는 조합이다.
+ * 고대비에서는 보조 정보(muted)도 흐리게 두지 않고 본문과 같은 흰색을 쓴다.
+ */
+:root[data-contrast='high'] {
+  --voisk-page: #000000;
+  --voisk-surface: #000000;
+  --voisk-line: #ffffff;
+  --voisk-ink: #ffffff;
+  --voisk-muted: #ffffff;
+  --voisk-accent: #ffe600;
+  --voisk-focus: #ffe600;
+  --voisk-strong: #ffe600;
+  --voisk-on-strong: #000000;
+}
+
+/*
+ * 큰 글자 모드: 루트 글꼴 크기만 키운다.
+ * Tailwind의 크기 유틸리티가 전부 rem 기반이라 글자·여백·터치 영역이
+ * 함께 커진다. 개별 컴포넌트를 손댈 필요가 없다.
+ */
+:root[data-text='large'] {
+  font-size: 20px;
+}
+
 .voisk-screen-bg {
   position: relative;
   height: 100dvh;
   overflow: hidden;
+  background: var(--voisk-page);
 }
 
 .voisk-screen-bg::before {
   content: "";
   position: absolute;
   inset: 0 0 -96px;
-  background: radial-gradient(circle at top, #edf5ff 0%, #f8fbff 42%, #f4f0e8 100%);
+  background: var(--voisk-page);
 }
 
 .voisk-screen-bg > * {

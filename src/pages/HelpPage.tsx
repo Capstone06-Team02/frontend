@@ -36,7 +36,6 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
             window.location.href = '/';
           }}
           subtitle="사용자 도움말"
-          tone="light"
         />
 
         <section aria-live="polite" aria-atomic="true" className="mb-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
