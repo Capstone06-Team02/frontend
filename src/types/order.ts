@@ -93,6 +93,23 @@ export type MenuInfo = {
   price: number;
 };
 
+export type SignatureMenuInfo = {
+  category: CategoryInfo;
+  description: string;
+  isAvailable: boolean;
+  isSignature: boolean;
+  menuId: number;
+  name: string;
+  price: number;
+};
+
+export type SignatureMenusResponse = {
+  menuCount: number;
+  menus: SignatureMenuInfo[];
+  storeId: number;
+  storeName: string;
+};
+
 export type MenuCacheResponse = {
   cachedAt: string;
   menuCount: number;

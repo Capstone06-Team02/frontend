@@ -9,6 +9,7 @@ import type {
   RecommendApiResponse,
   RecommendHintListResponse,
   RequiredOptionSummaryResponse,
+  SignatureMenusResponse,
 } from '../types/order';
 
 const DEFAULT_RESTAURANT_ID = Number(
@@ -22,6 +23,20 @@ export const cacheRestaurantMenus = async (
 ): Promise<MenuCacheResponse> => {
   const response = await apiClient.post<MenuCacheResponse>(
     `/api/order/restaurants/${restaurantId}/menus/cache`,
+  );
+  return response.data;
+};
+
+/**
+ * 매장의 시그니처 메뉴 목록. 사전에 지정된 값을 그대로 내려주므로 빠르고
+ * 결과가 매번 같다. 예전에는 추천 API(LLM)에 문장을 보내 받아왔는데
+ * 응답이 6초 걸리고 간헐적으로 빈 결과가 왔다.
+ */
+export const fetchSignatureMenus = async (
+  restaurantId = DEFAULT_RESTAURANT_ID,
+): Promise<SignatureMenusResponse> => {
+  const response = await apiClient.get<SignatureMenusResponse>(
+    `/api/order/stores/${restaurantId}/menus/signatures`,
   );
   return response.data;
 };

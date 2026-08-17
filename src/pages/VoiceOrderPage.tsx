@@ -9,6 +9,7 @@ import {
   fetchRecommendations,
   fetchRecommendationsByHint,
   fetchRequiredOptionSummary,
+  fetchSignatureMenus,
   getDefaultRestaurantId,
   selectOrderOption,
   sendOrderText,
@@ -25,6 +26,7 @@ import type {
   RecommendHint,
   RecommendationInfo,
   RequiredOptionSummaryResponse,
+  SignatureMenuInfo,
 } from '../types/order';
 import { wantsRecommendation } from '../utils/cafeOrder';
 import { formatPrice } from '../utils/format';
@@ -58,7 +60,6 @@ type TextCommandBoxProps = {
 
 const RESTAURANT_ID = getDefaultRestaurantId();
 const RESTAURANT_DISPLAY_NAME = '중앙대 카페';
-const FEATURED_RECOMMEND_TEXT = '시그니처 메뉴 추천해줘';
 const HOME_INTRO_GUIDE =
   'Voisk의 첫 화면입니다. 메뉴판, 메뉴 추천, 즉시 주문 버튼이 있습니다. 오른쪽으로 스와이프해서 원하는 기능을 선택해 주세요.';
 const HOME_USAGE_GUIDE =
@@ -237,8 +238,10 @@ const TextCommandBox = ({
   };
 
   return (
+    // 바깥 상자는 accent 계열 테두리를 쓴다. 안쪽 입력칸이 흰(고대비) 테두리라
+    // 같은 색으로 두르면 선이 두 겹으로 겹쳐 보인다. 색을 달리해 구분한다.
     <form
-      className="grid gap-2 rounded-xl border-4 border-line bg-surface p-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
+      className="grid gap-4 rounded-xl border-4 border-accent-line bg-surface p-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
@@ -256,16 +259,14 @@ const TextCommandBox = ({
         onChange={(event) => setValue(event.target.value)}
         placeholder={placeholder || undefined}
         autoComplete="off"
-        className="min-h-14 rounded-lg border-4 border-line bg-surface px-4 py-3 text-lg font-black leading-snug text-ink placeholder:text-muted focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
+        /* 입력칸은 포커스 전에도 테두리가 보여야 어디를 눌러야 하는지 알 수 있다.
+           대신 바깥 상자의 테두리를 없애 선이 두 겹으로 겹치지 않게 했다. */
+        className="min-h-16 rounded-lg border-4 border-line bg-surface px-4 py-3 text-lg font-black leading-snug text-ink placeholder:text-muted focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
       />
       <button
         type="submit"
         aria-label="전송"
-        className={`flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-lg font-black text-on-strong focus:outline-none focus:ring-4 focus:ring-focusring ${
-          disabled || !value.trim()
-            ? 'bg-slate-300 text-slate-700 shadow-none'
-            : 'bg-strong shadow-[0_12px_28px_rgba(29,78,216,0.22)]'
-        }`}
+        className="flex min-h-16 items-center justify-center gap-2 rounded-lg border-4 border-accent bg-accent px-4 text-lg font-black text-on-accent shadow-[0_12px_28px_rgba(29,78,216,0.22)] focus:outline-none focus:ring-4 focus:ring-focusring"
       >
         <Send aria-hidden="true" size={20} />
         전송
@@ -280,7 +281,7 @@ export const VoiceOrderPage = () => {
   const [menuCache, setMenuCache] = useState<MenuCacheResponse | null>(null);
   const [lastResponse, setLastResponse] = useState<OrderApiResponse | null>(null);
   const [completeResponse, setCompleteResponse] = useState<OrderApiResponse | null>(null);
-  const [featuredMenus, setFeaturedMenus] = useState<RecommendationInfo[]>([]);
+  const [featuredMenus, setFeaturedMenus] = useState<SignatureMenuInfo[]>([]);
   const [recommendHints, setRecommendHints] = useState<RecommendHint[]>([]);
   const [recommendMenus, setRecommendMenus] = useState<RecommendationInfo[]>([]);
   const [requiredSummary, setRequiredSummary] = useState<RequiredOptionSummaryResponse | null>(null);
@@ -706,9 +707,10 @@ export const VoiceOrderPage = () => {
     startProcessingNotice();
     try {
       await ensureMenuCache();
-      const data = await fetchRecommendations(FEATURED_RECOMMEND_TEXT, RESTAURANT_ID);
+      // 시그니처 메뉴 전용 API. 추천 API(LLM)와 달리 결과가 고정이고 빠르다.
+      const data = await fetchSignatureMenus(RESTAURANT_ID);
       stopProcessingNotice();
-      setFeaturedMenus(data.recommendations);
+      setFeaturedMenus(data.menus);
       pushCurrentView();
       clearTransientAnnouncements();
       setMode('featured-menu');
@@ -1420,7 +1422,7 @@ export const VoiceOrderPage = () => {
               onClick={() => setHighContrast(!highContrast)}
               aria-pressed={highContrast}
               aria-label={`고대비 화면 ${highContrast ? '켜짐' : '꺼짐'}`}
-              className={`relative flex min-h-20 items-center gap-4 overflow-hidden rounded-xl border-[3px] border-line px-6 text-left shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-focusring active:scale-[0.99] ${
+              className={`relative flex min-h-20 items-center gap-4 overflow-hidden rounded-xl border-4 border-line px-6 text-left shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-focusring active:scale-[0.99] ${
                 highContrast ? 'bg-strong text-on-strong' : 'bg-surface text-accent'
               }`}
             >
@@ -1434,7 +1436,7 @@ export const VoiceOrderPage = () => {
                   highContrast ? 'text-on-strong' : 'text-muted'
                 }`}
               >
-                {highContrast ? '켜짐 눌러서 끄기' : '꺼짐 글자를 뚜렷하게'}
+                {highContrast ? '눌러서\n끄기' : '글자를\n뚜렷하게'}
               </span>
             </button>
             <button
