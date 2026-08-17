@@ -38,7 +38,7 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
           subtitle="사용자 도움말"
         />
 
-        <section aria-live="polite" aria-atomic="true" className="mb-3 rounded-lg border border-line bg-surface px-4 py-3">
+        <section aria-live="polite" aria-atomic="true" className="mb-3 rounded-lg border-[3px] border-line bg-surface px-4 py-3">
           <p className="text-sm font-semibold text-muted">현재 선택</p>
           <p className="text-xl font-black text-accent">{activeItem}</p>
         </section>
@@ -54,7 +54,7 @@ export const HelpPage = ({ speak }: PageWithSpeechProps) => {
                   speak(`${item.title}. ${item.body}`);
                 }}
                 aria-label={`${item.title}. ${item.body}`}
-                className={`flex min-h-0 w-full items-center rounded-lg border-2 px-4 py-3 text-left focus:outline-none focus:ring-4 focus:ring-focusring ${
+                className={`flex min-h-0 w-full items-center rounded-lg border-[3px] px-4 py-3 text-left focus:outline-none focus:ring-4 focus:ring-focusring ${
                   activeItem === item.title ? activeClass : inactiveClass
                 }`}
               >

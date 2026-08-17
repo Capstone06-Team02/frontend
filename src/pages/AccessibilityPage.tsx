@@ -7,10 +7,10 @@ import type { PageWithSpeechProps } from '../types/order';
 // 켜진 항목은 채우고, 꺼진 항목은 테두리만 남긴다. 색 차이만으로 구분하지
 // 않아야 색을 구별하기 어려운 사용자도 상태를 알 수 있다.
 const TOGGLE_BASE =
-  'flex min-h-0 w-full items-center justify-between gap-4 rounded-lg border-2 border-line px-4 py-3 text-left shadow-sm focus:outline-none focus:ring-4 focus:ring-focusring';
+  'flex min-h-0 w-full items-center justify-between gap-4 rounded-lg border-[3px] border-line px-4 py-3 text-left shadow-sm focus:outline-none focus:ring-4 focus:ring-focusring';
 const TOGGLE_ON = 'bg-strong text-on-strong';
 const TOGGLE_OFF = 'bg-surface text-ink';
-const PANEL = 'rounded-lg border-2 border-line bg-surface px-4 py-3 text-ink';
+const PANEL = 'rounded-lg border-[3px] border-line bg-surface px-4 py-3 text-ink';
 
 export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
   const { highContrast, largeText, setHighContrast, setLargeText } = useAccessibility();
@@ -131,7 +131,7 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
                 onClick={() => changeVoiceSpeed(-0.25)}
                 onFocus={() => speak(`음성 속도 느리게 버튼, 현재 ${voiceSpeed.toFixed(2)}배`)}
                 aria-label={`음성 속도 느리게 현재 ${voiceSpeed.toFixed(2)}배`}
-                className="flex min-h-12 items-center justify-center rounded-lg border-2 border-line bg-surface font-black text-ink focus:outline-none focus:ring-4 focus:ring-focusring"
+                className="flex min-h-12 items-center justify-center rounded-lg border-[3px] border-line bg-surface font-black text-ink focus:outline-none focus:ring-4 focus:ring-focusring"
               >
                 <Minus aria-hidden="true" size={28} />
               </button>
@@ -140,7 +140,7 @@ export const AccessibilityPage = ({ speak }: PageWithSpeechProps) => {
                 onClick={() => changeVoiceSpeed(0.25)}
                 onFocus={() => speak(`음성 속도 빠르게 버튼, 현재 ${voiceSpeed.toFixed(2)}배`)}
                 aria-label={`음성 속도 빠르게 현재 ${voiceSpeed.toFixed(2)}배`}
-                className="flex min-h-12 items-center justify-center rounded-lg border-2 border-line bg-surface font-black text-ink focus:outline-none focus:ring-4 focus:ring-focusring"
+                className="flex min-h-12 items-center justify-center rounded-lg border-[3px] border-line bg-surface font-black text-ink focus:outline-none focus:ring-4 focus:ring-focusring"
               >
                 <Plus aria-hidden="true" size={28} />
               </button>

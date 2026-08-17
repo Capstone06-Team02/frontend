@@ -75,12 +75,12 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
           subtitle="음성 안내 목소리"
         />
 
-        <section aria-live="polite" aria-atomic="true" className="mb-3 rounded-lg border border-line bg-surface px-4 py-3">
+        <section aria-live="polite" aria-atomic="true" className="mb-3 rounded-lg border-[3px] border-line bg-surface px-4 py-3">
           <p className="text-sm font-semibold text-muted">현재 선택된 목소리</p>
           <p className="mt-1 text-xl font-black text-accent">{selectedVoiceName}</p>
         </section>
 
-        <section className="mb-3 flex-1 rounded-lg border-2 border-line bg-surface p-5">
+        <section className="mb-3 flex-1 rounded-lg border-[3px] border-line bg-surface p-5">
           <p className="text-sm font-semibold text-muted">확인 중인 목소리</p>
           <p className="mt-2 text-3xl font-black leading-tight">{voiceName}</p>
           <p className="mt-4 text-base font-semibold leading-snug text-muted">
@@ -95,7 +95,7 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
               onClick={() => moveVoice(-1)}
               onFocus={() => speak('이전 목소리 버튼')}
               aria-label="이전 목소리"
-              className="flex min-h-14 items-center justify-center rounded-lg border border-line bg-surface text-lg font-black focus:outline-none focus:ring-4 focus:ring-focusring"
+              className="flex min-h-14 items-center justify-center rounded-lg border-[3px] border-line bg-surface text-lg font-black focus:outline-none focus:ring-4 focus:ring-focusring"
             >
               이전
             </button>
@@ -104,7 +104,7 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
               onClick={() => moveVoice(1)}
               onFocus={() => speak('다음 목소리 버튼')}
               aria-label="다음 목소리"
-              className="flex min-h-14 items-center justify-center rounded-lg border border-line bg-surface text-lg font-black focus:outline-none focus:ring-4 focus:ring-focusring"
+              className="flex min-h-14 items-center justify-center rounded-lg border-[3px] border-line bg-surface text-lg font-black focus:outline-none focus:ring-4 focus:ring-focusring"
             >
               다음
             </button>
@@ -115,7 +115,7 @@ export const VoiceSettingsPage = ({ speak }: PageWithSpeechProps) => {
             onClick={() => speak('이 목소리는 Voisk 음성 안내에 사용됩니다.')}
             onFocus={() => speak('미리 듣기 버튼')}
             aria-label="미리 듣기"
-            className="flex min-h-14 items-center justify-center rounded-lg border border-line bg-surface text-lg font-black focus:outline-none focus:ring-4 focus:ring-focusring"
+            className="flex min-h-14 items-center justify-center rounded-lg border-[3px] border-line bg-surface text-lg font-black focus:outline-none focus:ring-4 focus:ring-focusring"
           >
             미리 듣기
           </button>
