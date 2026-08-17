@@ -64,23 +64,33 @@ const HOME_INTRO_GUIDE =
 const HOME_USAGE_GUIDE =
   '입력창에서 휴대폰 기본 받아쓰기 버튼을 누르면 음성으로 입력할 수 있어요. 메뉴를 직접 입력하거나 예시 문장을 선택한 뒤 전송하면 됩니다.';
 
+/*
+ * 설명은 라벨 오른쪽에 들어간다. 줄바꿈(\n)을 문구에 직접 넣어 어느 기기에서든
+ * 같은 자리에서 끊기게 한다. 폭에 맡기면 글꼴 크기나 화면 폭에 따라 끊기는
+ * 위치가 달라진다.
+ *
+ * 낭독은 줄바꿈 없이 한 문장으로 나가야 하므로 aria-label에는
+ * toSpokenText로 공백으로 바꿔 넣는다.
+ */
+const toSpokenText = (text: string) => text.replace(/\n/g, ' ');
+
 const HOME_ACTIONS: HomeAction[] = [
   {
     label: '메뉴판',
     speechInput: '메뉴판 보여줘',
-    description: '대표 메뉴 혹은 전체 메뉴를 확인할 수 있습니다.',
+    description: '대표 메뉴 혹은\n전체 메뉴 확인',
     icon: BookOpen,
   },
   {
     label: '메뉴 추천',
     speechInput: '메뉴 추천',
-    description: '사용자 취향에 맞게 메뉴를 추천해드립니다.',
+    description: '사용자 취향에\n맞게 메뉴 추천',
     icon: Lightbulb,
   },
   {
     label: '즉시 주문',
     speechInput: '메뉴 주문',
-    description: '원하시는 메뉴를 즉시 음성으로 주문하실 수 있습니다.',
+    description: '원하는 메뉴\n즉시 주문',
     icon: Coffee,
   },
 ];
@@ -164,6 +174,12 @@ const normalizeRecommendHintText = (text: string) =>
     .replace(/메뉴/g, '')
     .replace(/음료/g, '');
 
+/*
+ * 메뉴명 글자 크기. 이름이 길면 한 단계 낮춰 버튼 안에 자연스럽게 들어가게 한다.
+ * '부드러운 생크림 카스텔라'처럼 긴 이름까지 키우면 줄이 과하게 늘어난다.
+ */
+const getMenuNameSize = (name: string) => (name.length > 10 ? 'text-xl' : 'text-[1.6rem]');
+
 const getOptionButtonLabel = (value: string) => {
   if (value === '없음') return '추가 안 함';
   return value;
@@ -222,7 +238,7 @@ const TextCommandBox = ({
 
   return (
     <form
-      className="grid gap-2 rounded-xl border-[3px] border-line bg-surface p-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
+      className="grid gap-2 rounded-xl border-4 border-line bg-surface p-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
@@ -240,7 +256,7 @@ const TextCommandBox = ({
         onChange={(event) => setValue(event.target.value)}
         placeholder={placeholder || undefined}
         autoComplete="off"
-        className="min-h-14 rounded-lg border-[3px] border-line bg-surface px-4 py-3 text-lg font-black leading-snug text-ink placeholder:text-muted focus:outline-none focus:ring-4 focus:ring-focusring"
+        className="min-h-14 rounded-lg border-4 border-line bg-surface px-4 py-3 text-lg font-black leading-snug text-ink placeholder:text-muted focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
       />
       <button
         type="submit"
@@ -931,16 +947,20 @@ export const VoiceOrderPage = () => {
                   type="button"
                   onClick={() => handleMenuSelect(menu.name)}
                   aria-label={`${menu.name} ${formatPrice(menuPriceByName(menu.name, menu.price))}`}
-                  className="rounded-lg border-[3px] border-line bg-surface px-5 py-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-focusring"
+                  className="flex items-center gap-3 rounded-lg border-4 border-line bg-surface px-5 py-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
                 >
-                  <span className="block text-xl font-black text-ink">{menu.name}</span>
-                  <span aria-hidden="true" className="mt-1 block text-base font-black text-muted">
+                  <span
+                    className={`min-w-0 flex-1 break-keep font-black leading-tight text-ink ${getMenuNameSize(menu.name)}`}
+                  >
+                    {menu.name}
+                  </span>
+                  <span aria-hidden="true" className="shrink-0 text-xl font-black text-muted">
                     {formatPrice(menuPriceByName(menu.name, menu.price))}
                   </span>
                 </button>
               ))}
               {featuredMenus.length === 0 && (
-                <p className="rounded-lg border-[3px] border-line bg-surface px-5 py-4 text-lg font-black text-muted">
+                <p className="rounded-lg border-4 border-line bg-surface px-5 py-4 text-lg font-black text-muted">
                   시그니처 메뉴를 불러오지 못했어요.
                 </p>
               )}
@@ -950,14 +970,14 @@ export const VoiceOrderPage = () => {
             <button
               type="button"
               onClick={showCategoryBoard}
-              className="min-h-14 rounded-xl bg-strong px-4 text-xl font-black text-on-strong shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-focusring"
+              className="min-h-14 rounded-xl border-4 border-accent-edge bg-accent px-4 text-xl font-black text-on-accent shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-focusring"
             >
               카테고리 보기
             </button>
             <button
               type="button"
               onClick={showFullMenuBoard}
-              className="min-h-14 rounded-xl bg-strong px-4 text-xl font-black text-on-strong shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-focusring"
+              className="min-h-14 rounded-xl border-4 border-accent-edge bg-accent px-4 text-xl font-black text-on-accent shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-focusring"
             >
               전체 메뉴
             </button>
@@ -985,9 +1005,11 @@ export const VoiceOrderPage = () => {
                   key={categoryName}
                   type="button"
                   onClick={() => showCategoryMenus(categoryName)}
-                  className="rounded-lg border-[3px] border-line bg-surface px-5 py-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-focusring"
+                  className="rounded-lg border-4 border-line bg-surface px-5 py-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
                 >
-                  <span className="block text-xl font-black text-ink">{categoryName}</span>
+                  <span className={`block break-keep font-black leading-tight text-ink ${getMenuNameSize(categoryName)}`}>
+                    {categoryName}
+                  </span>
                 </button>
               ))}
             </div>
@@ -995,7 +1017,7 @@ export const VoiceOrderPage = () => {
           <button
             type="button"
             onClick={showFullMenuBoard}
-            className="mt-3 min-h-14 rounded-xl bg-strong px-4 text-xl font-black text-on-strong shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-focusring"
+            className="mt-3 min-h-14 rounded-xl border-4 border-accent-edge bg-accent px-4 text-xl font-black text-on-accent shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-focusring"
           >
             전체 메뉴 보기
           </button>
@@ -1019,10 +1041,14 @@ export const VoiceOrderPage = () => {
                   type="button"
                   onClick={() => handleMenuSelect(menu.name)}
                   aria-label={`${menu.name} ${formatPrice(menu.price)}`}
-                  className="rounded-lg border-[3px] border-line bg-surface px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-focusring"
+                  className="flex items-center gap-3 rounded-lg border-4 border-line bg-surface px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
                 >
-                  <span className="block text-xl font-black leading-tight text-ink">{menu.name}</span>
-                  <span aria-hidden="true" className="mt-1 block text-base font-black text-muted">
+                  <span
+                    className={`min-w-0 flex-1 break-keep font-black leading-tight text-ink ${getMenuNameSize(menu.name)}`}
+                  >
+                    {menu.name}
+                  </span>
+                  <span aria-hidden="true" className="shrink-0 text-xl font-black text-muted">
                     {formatPrice(menu.price)}
                   </span>
                 </button>
@@ -1055,10 +1081,14 @@ export const VoiceOrderPage = () => {
                         type="button"
                         onClick={() => handleMenuSelect(menu.name)}
                         aria-label={`${menu.name} ${formatPrice(menu.price)}`}
-                        className="rounded-lg border-[3px] border-line bg-surface px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-4 focus:ring-focusring"
+                        className="flex items-center gap-3 rounded-lg border-4 border-line bg-surface px-5 py-3.5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.09)] focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
                       >
-                        <span className="block text-xl font-black leading-tight text-ink">{menu.name}</span>
-                        <span aria-hidden="true" className="mt-1 block text-base font-black text-muted">
+                        <span
+                          className={`min-w-0 flex-1 break-keep font-black leading-tight text-ink ${getMenuNameSize(menu.name)}`}
+                        >
+                          {menu.name}
+                        </span>
+                        <span aria-hidden="true" className="shrink-0 text-xl font-black text-muted">
                           {formatPrice(menu.price)}
                         </span>
                       </button>
@@ -1115,7 +1145,7 @@ export const VoiceOrderPage = () => {
           )}
 
           {isRecommendationInput && (
-            <div className="mt-4 rounded-xl border-[3px] border-line bg-surface px-5 py-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
+            <div className="mt-4 rounded-xl border-4 border-line bg-surface px-5 py-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
               <p className="text-lg font-black text-accent">추천 문장</p>
               <div className="mt-3 grid gap-2">
                 {recommendHints.map((hint) => (
@@ -1123,13 +1153,13 @@ export const VoiceOrderPage = () => {
                     key={hint.hintId}
                     type="button"
                     onClick={() => showRecommendationsByHint(hint)}
-                    className="rounded-lg border-[3px] border-line bg-surface px-4 py-3 text-left text-lg font-black text-ink focus:outline-none focus:ring-4 focus:ring-focusring"
+                    className="rounded-lg border-4 border-line bg-surface px-4 py-3 text-left text-lg font-black text-ink focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
                   >
                     {getRecommendHintSentence(hint.label)}
                   </button>
                 ))}
                 {recommendHints.length === 0 && (
-                  <p className="rounded-lg border-[3px] border-line bg-surface px-4 py-3 text-base font-black text-muted">
+                  <p className="rounded-lg border-4 border-line bg-surface px-4 py-3 text-base font-black text-muted">
                     취향을 직접 입력하면 추천 메뉴를 받을 수 있어요.
                   </p>
                 )}
@@ -1152,10 +1182,12 @@ export const VoiceOrderPage = () => {
                   type="button"
                   onClick={() => handleMenuSelect(menu.name)}
                   aria-label={`${menu.name} ${formatPrice(menuPriceByName(menu.name, menu.price))}`}
-                  className="rounded-xl bg-strong px-5 py-4 text-left text-xl font-black text-on-strong shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-focusring"
+                  className="flex items-center gap-3 rounded-xl bg-strong px-5 py-4 text-left font-black text-on-strong shadow-[0_16px_38px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-focusring"
                 >
-                  <span>{menu.name}</span>
-                  <span aria-hidden="true" className="mt-1 block text-base text-on-strong">
+                  <span className={`min-w-0 flex-1 break-keep leading-tight ${getMenuNameSize(menu.name)}`}>
+                    {menu.name}
+                  </span>
+                  <span aria-hidden="true" className="shrink-0 text-xl text-on-strong">
                     {formatPrice(menuPriceByName(menu.name, menu.price))}
                   </span>
                 </button>
@@ -1170,7 +1202,7 @@ export const VoiceOrderPage = () => {
                 const choices = slot.candidates?.filter((candidate) => candidate.name) ?? [];
                 const slotName = slot.name ?? '';
                 return (
-                  <div key={slotName} className="rounded-xl border-[3px] border-line bg-surface p-3 shadow-[0_12px_28px_rgba(15,23,42,0.09)]">
+                  <div key={slotName} className="rounded-xl border-4 border-line bg-surface p-3 shadow-[0_12px_28px_rgba(15,23,42,0.09)]">
                     <p
                       tabIndex={0}
                       className="mb-2 px-1 text-lg font-black text-ink focus:outline-none focus:ring-4 focus:ring-focusring"
@@ -1204,7 +1236,7 @@ export const VoiceOrderPage = () => {
                             className={`min-h-14 rounded-xl border-[3px] px-3 text-center text-base font-black shadow-[0_12px_28px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-4 focus:ring-focusring ${
                               selected
                                 ? 'border-line bg-strong text-on-strong'
-                                : 'border-line bg-surface text-ink'
+                                : 'border-accent-line bg-accent text-on-accent'
                             }`}
                           >
                             {label}
@@ -1237,7 +1269,7 @@ export const VoiceOrderPage = () => {
               <button
                 type="button"
                 onClick={toggleOptionalOptions}
-                className="min-h-14 rounded-xl border-[3px] border-line bg-surface px-5 text-left text-xl font-black text-accent shadow-[0_12px_28px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-focusring"
+                className="min-h-14 rounded-xl border-4 border-line bg-surface px-5 text-left text-xl font-black text-accent shadow-[0_12px_28px_rgba(29,78,216,0.12)] focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
               >
                 추가 옵션 선택
               </button>
@@ -1247,7 +1279,7 @@ export const VoiceOrderPage = () => {
                     optionalOptions.optionGroups.map((optionGroup) => (
                       <div
                         key={optionGroup.optionGroupId}
-                        className="rounded-xl border-[3px] border-line bg-surface p-3 shadow-[0_12px_28px_rgba(15,23,42,0.09)]"
+                        className="rounded-xl border-4 border-line bg-surface p-3 shadow-[0_12px_28px_rgba(15,23,42,0.09)]"
                       >
                         <p className="mb-2 px-1 text-lg font-black text-ink">
                           {optionGroup.optionGroupName}
@@ -1270,7 +1302,7 @@ export const VoiceOrderPage = () => {
                                 className={`min-h-12 rounded-lg border-[3px] px-4 text-left text-base font-black focus:outline-none focus:ring-4 focus:ring-focusring ${
                                   selected
                                     ? 'border-line bg-strong text-on-strong'
-                                    : 'border-line bg-surface text-ink'
+                                    : 'border-accent-line bg-accent text-on-accent'
                                 }`}
                               >
                                 {getOptionButtonLabel(item.optionItemName)}
@@ -1286,13 +1318,13 @@ export const VoiceOrderPage = () => {
                       </div>
                     ))
                   ) : (
-                    <p className="rounded-lg border-[3px] border-line bg-surface px-4 py-3 text-base font-black text-muted">
+                    <p className="rounded-lg border-4 border-line bg-surface px-4 py-3 text-base font-black text-muted">
                       추가할 수 있는 옵션이 없습니다.
                     </p>
                   )}
                 </div>
               )}
-              <div className="rounded-xl border-[3px] border-line bg-surface px-5 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
+              <div className="rounded-xl border-4 border-line bg-surface px-5 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
                 <p
                   tabIndex={0}
                   className="text-base font-black text-muted focus:outline-none focus:ring-4 focus:ring-focusring rounded"
@@ -1362,15 +1394,18 @@ export const VoiceOrderPage = () => {
                   key={action.label}
                   type="button"
                   onClick={() => handleHomeAction(action)}
-                  aria-label={`${action.label}. ${action.description}`}
-                  className="relative flex min-h-24 items-center gap-4 overflow-hidden rounded-xl border-[3px] border-line bg-surface px-6 text-left text-accent shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-focusring active:scale-[0.99]"
+                  aria-label={`${action.label}. ${toSpokenText(action.description)}`}
+                  className="relative flex min-h-24 items-center gap-4 overflow-hidden rounded-xl border-4 border-line bg-surface px-6 text-left text-accent shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px] active:scale-[0.99]"
                 >
-                  <Icon aria-hidden="true" className="shrink-0" size={32} />
-                  <span className="relative">
-                    <span className="block text-[1.65rem] font-black leading-tight">{action.label}</span>
-                    <span aria-hidden="true" className="mt-1 block text-base font-black text-muted">
-                      {action.description}
-                    </span>
+                  <Icon aria-hidden="true" className="shrink-0" size={34} />
+                  <span className="relative shrink-0 text-[1.95rem] font-black leading-tight">
+                    {action.label}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="relative ml-auto whitespace-pre-line break-keep text-right text-sm font-black leading-snug text-muted"
+                  >
+                    {action.description}
                   </span>
                 </button>
               );
@@ -1389,31 +1424,32 @@ export const VoiceOrderPage = () => {
                 highContrast ? 'bg-strong text-on-strong' : 'bg-surface text-accent'
               }`}
             >
-              <Contrast aria-hidden="true" className="shrink-0" size={32} />
-              <span className="relative">
-                <span className="block text-[1.45rem] font-black leading-tight">고대비 화면</span>
-                <span
-                  aria-hidden="true"
-                  className={`mt-1 block text-base font-black ${
-                    highContrast ? 'text-on-strong' : 'text-muted'
-                  }`}
-                >
-                  {highContrast ? '켜짐. 눌러서 끄기' : '꺼짐. 글자를 더 뚜렷하게 봅니다.'}
-                </span>
+              <Contrast aria-hidden="true" className="shrink-0" size={34} />
+              <span className="relative shrink-0 text-[1.95rem] font-black leading-tight">
+                고대비 화면
+              </span>
+              <span
+                aria-hidden="true"
+                className={`relative ml-auto whitespace-pre-line break-keep text-right text-sm font-black leading-snug ${
+                  highContrast ? 'text-on-strong' : 'text-muted'
+                }`}
+              >
+                {highContrast ? '켜짐 눌러서 끄기' : '꺼짐 글자를 뚜렷하게'}
               </span>
             </button>
             <button
               type="button"
               onClick={announceHomeUsageGuide}
               aria-label="사용법"
-              className="relative flex min-h-20 items-center gap-4 overflow-hidden rounded-xl border-[3px] border-line bg-surface px-6 text-left text-accent shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-focusring active:scale-[0.99]"
+              className="relative flex min-h-20 items-center gap-4 overflow-hidden rounded-xl border-4 border-line bg-surface px-6 text-left text-accent shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px] active:scale-[0.99]"
             >
-              <CircleHelp aria-hidden="true" className="shrink-0" size={32} />
-              <span className="relative">
-                <span className="block text-[1.45rem] font-black leading-tight">사용법</span>
-                <span aria-hidden="true" className="mt-1 block text-base font-black text-muted">
-                  처음 이용하시면 먼저 들어보세요.
-                </span>
+              <CircleHelp aria-hidden="true" className="shrink-0" size={34} />
+              <span className="relative shrink-0 text-[1.95rem] font-black leading-tight">사용법</span>
+              <span
+                aria-hidden="true"
+                className="relative ml-auto whitespace-pre-line break-keep text-right text-sm font-black leading-snug text-muted"
+              >
+                {'첫 사용자 위한\n조작법 안내'}
               </span>
             </button>
           </div>
