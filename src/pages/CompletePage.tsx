@@ -17,7 +17,6 @@ export const CompletePage = ({
   isListening = false,
   onHome,
   onMicClick,
-  speak,
 }: CompletePageProps) => {
   const didAnnounceRef = useRef(false);
   const guideRef = useRef<HTMLParagraphElement>(null);
@@ -30,9 +29,10 @@ export const CompletePage = ({
     if (didAnnounceRef.current) return;
     didAnnounceRef.current = true;
 
+    // 포커스만 옮긴다. 아래 sr-only 문단을 VoiceOver가 읽어주므로,
+    // 여기서 speak()로 같은 문장을 재생하면 두 음성이 겹친다.
     const timer = setTimeout(() => {
       guideRef.current?.focus();
-      speak(replayMessage);
     }, 400);
 
     return () => clearTimeout(timer);
@@ -80,8 +80,12 @@ export const CompletePage = ({
           </div>
         )}
 
-        {/* 완료 아이콘 + 메시지 */}
-        <div className="flex flex-1 flex-col items-center justify-center text-center" aria-live="polite" aria-atomic="true">
+        {/*
+          완료 아이콘 + 메시지.
+          aria-live를 걸지 않는다. 위 sr-only 문단이 이미 완료 안내를 읽어주므로,
+          이 영역까지 낭독하면 안내가 한 번 더 나간다.
+        */}
+        <div className="flex flex-1 flex-col items-center justify-center text-center">
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-surface text-accent shadow-[0_12px_40px_rgba(29,78,216,0.18)]">
             <CheckCircle2 aria-hidden="true" size={52} />
           </div>
@@ -101,7 +105,6 @@ export const CompletePage = ({
             }
             window.location.href = '/';
           }}
-          onFocus={() => speak('처음 화면으로 돌아가기 버튼')}
           aria-label="처음 화면으로 돌아가기"
           className="mt-6 flex min-h-16 w-full items-center justify-center rounded-lg bg-strong text-xl font-black text-on-strong shadow-[0_18px_40px_rgba(15,23,42,0.24)] focus:outline-none focus:ring-4 focus:ring-focusring"
         >
