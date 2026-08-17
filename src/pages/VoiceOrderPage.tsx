@@ -1375,22 +1375,8 @@ export const VoiceOrderPage = () => {
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={announceHomeUsageGuide}
-              aria-label="사용법"
-              className="relative flex min-h-20 items-center gap-4 overflow-hidden rounded-xl border-[3px] border-line bg-surface px-6 text-left text-accent shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-focusring active:scale-[0.99]"
-            >
-              <CircleHelp aria-hidden="true" className="shrink-0" size={32} />
-              <span className="relative">
-                <span className="block text-[1.45rem] font-black leading-tight">사용법</span>
-                <span aria-hidden="true" className="mt-1 block text-base font-black text-muted">
-                  처음 이용하시면 먼저 들어보세요.
-                </span>
-              </span>
-            </button>
             {/*
-              고대비 전환. 기존 항목 뒤에 두어 스와이프 순서 앞부분을 그대로 둔다.
+              고대비 전환. 즉시 주문 바로 다음, 사용법 앞에 둔다.
               상태 변경은 aria-pressed로 VoiceOver가 직접 알려주므로 speak()를
               덧붙이지 않는다. 자체 TTS가 스크린리더 낭독과 겹치지 않게 하기 위해서다.
             */}
@@ -1413,6 +1399,20 @@ export const VoiceOrderPage = () => {
                   }`}
                 >
                   {highContrast ? '켜짐. 눌러서 끄기' : '꺼짐. 글자를 더 뚜렷하게 봅니다.'}
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={announceHomeUsageGuide}
+              aria-label="사용법"
+              className="relative flex min-h-20 items-center gap-4 overflow-hidden rounded-xl border-[3px] border-line bg-surface px-6 text-left text-accent shadow-[0_12px_30px_rgba(29,78,216,0.12)] focus:outline-none focus:ring-4 focus:ring-focusring active:scale-[0.99]"
+            >
+              <CircleHelp aria-hidden="true" className="shrink-0" size={32} />
+              <span className="relative">
+                <span className="block text-[1.45rem] font-black leading-tight">사용법</span>
+                <span aria-hidden="true" className="mt-1 block text-base font-black text-muted">
+                  처음 이용하시면 먼저 들어보세요.
                 </span>
               </span>
             </button>
