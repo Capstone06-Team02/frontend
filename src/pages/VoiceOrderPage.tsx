@@ -1225,7 +1225,11 @@ export const VoiceOrderPage = () => {
                             key={candidate.name}
                             type="button"
                             onClick={() => {
-                              const submitText = candidate.defaultSelected ? '변경 안함' : candidate.name;
+                              // 백엔드는 옵션 이름만 보내면 슬롯에 반영하지 않는다.
+                              // 기본값 쪽이 '변경 안함' 문장을 쓰듯 여기도 문장으로 보낸다.
+                              const submitText = candidate.defaultSelected
+                                ? '변경 안함'
+                                : `${candidate.name} 선택`;
                               setOptimisticRequiredOptions((current) => ({
                                 ...current,
                                 [slotName]: candidate.name,
