@@ -1136,6 +1136,8 @@ export const VoiceOrderPage = () => {
             {optionDescription}
           </div>
 
+          {/* 옵션이 길어지면 화면을 넘어가므로 다른 화면과 같은 스크롤 영역을 둔다 */}
+          <div className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5">
           {!isConfirm && (
             <TextCommandBox
               disabled={isSubmitting}
@@ -1371,6 +1373,7 @@ export const VoiceOrderPage = () => {
               </button>
             </div>
           )}
+          </div>
         </div>
       </div>
     );
