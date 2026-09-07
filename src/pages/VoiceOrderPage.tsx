@@ -296,6 +296,8 @@ export const VoiceOrderPage = () => {
   const [confirmInitialAnnouncement, setConfirmInitialAnnouncement] = useState('');
   const [optionDescription, setOptionDescription] = useState('');
   const [loadingText, setLoadingText] = useState('');
+  // '다음'을 누른 응답을 기억한다. 누르기 전에는 옵션 화면을 유지한다.
+  const [advancedResponseKey, setAdvancedResponseKey] = useState('');
   const [showOptionalOptions, setShowOptionalOptions] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -316,13 +318,23 @@ export const VoiceOrderPage = () => {
   const { speak } = useVoice();
   const { highContrast, setHighContrast } = useAccessibility();
 
-  const dialogStep = getDialogStep(lastResponse);
+  /*
+   * 필수 옵션이 다 차면 백엔드는 곧바로 주문 확인 단계로 넘어간다. 그런데 화면이
+   * 저절로 바뀌면 방금 무엇을 골랐는지 확인할 틈이 없다. 그래서 아래 '다음'을
+   * 누르기 전까지는 옵션 화면에 머문다.
+   */
+  const backendStep = getDialogStep(lastResponse);
+  const stepKey = `${sessionId ?? ''}-${lastResponse?.response ?? ''}`;
+  const holdingForNext = backendStep === 'confirm' && advancedResponseKey !== stepKey;
+  const dialogStep: DialogStep = holdingForNext ? 'option' : backendStep;
   const quickReplies = getReplies(lastResponse);
   const selectedMenu = getSlotMenu(lastResponse);
   const totalPrice = getSlotTotalPrice(lastResponse);
   const currentMenu = findMenuByName(menuCache, selectedMenu);
   const currentMenuId = currentMenu?.menuId ?? null;
   const requiredSlots = getSlotOptionSlots(lastResponse).filter((slot) => slot.required);
+  // 백엔드가 확인 단계로 넘어갔다는 것은 필수 옵션이 모두 채워졌다는 뜻이다.
+  const allRequiredChosen = backendStep === 'confirm';
   const selectedOptionalLabels = selectedOptionalOptions.map(getSelectedOptionalLabel);
   const selectedRequiredLabels =
     requiredSummary?.selectedRequiredOptions.map((option) => option.optionItemName).filter(Boolean) ?? [];
@@ -1223,6 +1235,22 @@ export const VoiceOrderPage = () => {
                   </div>
                 );
               })}
+              {allRequiredChosen ? (
+                <button
+                  type="button"
+                  onClick={() => setAdvancedResponseKey(stepKey)}
+                  className="mt-1 min-h-16 rounded-xl border-4 border-accent bg-accent px-5 text-xl font-black text-on-accent shadow-[0_16px_38px_rgba(29,78,216,0.3)] focus:outline-none focus:ring-4 focus:ring-focusring"
+                >
+                  다음
+                </button>
+              ) : (
+                <p
+                  aria-hidden="true"
+                  className="mt-1 flex min-h-16 items-center justify-center rounded-xl border-4 border-line px-5 text-lg font-black text-muted"
+                >
+                  필수 옵션을 모두 골라 주세요
+                </p>
+              )}
             </div>
           )}
 
