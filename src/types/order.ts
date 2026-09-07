@@ -1,5 +1,9 @@
 export type OrderApiResponse = {
   sessionId?: string;
+  /** 장바구니 식별자. 여러 메뉴를 한 주문으로 묶는다. */
+  cartId?: string;
+  /** 장바구니에 담긴 메뉴들의 세션 목록 */
+  cartSessionIds?: string[];
   intent?: string;
   price?: {
     menuPrice?: number;
@@ -199,4 +203,20 @@ export type Speak = (message: string, onEnd?: () => void) => void;
 
 export type PageWithSpeechProps = {
   speak: Speak;
+};
+
+export type CartMenuItem = {
+  menuName: string;
+  sessionId: string;
+};
+
+export type CartMenusResponse = {
+  cartId: string;
+  items: CartMenuItem[];
+  menuNames: string[];
+};
+
+export type CartConfirmResponse = {
+  cartId: string;
+  confirmed: boolean;
 };

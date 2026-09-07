@@ -8,6 +8,8 @@ import type {
   OrderOptionSelectionResponse,
   RecommendApiResponse,
   RecommendHintListResponse,
+  CartConfirmResponse,
+  CartMenusResponse,
   RequiredOptionSummaryResponse,
   SignatureMenusResponse,
 } from '../types/order';
@@ -45,14 +47,26 @@ export const sendOrderText = async (
   text: string,
   sessionId: string | null,
   restaurantId = DEFAULT_RESTAURANT_ID,
+  cartId: string | null = null,
 ): Promise<OrderApiResponse> => {
-  const payload: { input: string; restaurantId: number; sessionId?: string } = {
+  const payload: {
+    input: string;
+    restaurantId: number;
+    sessionId?: string;
+    cartId?: string;
+  } = {
     input: text,
     restaurantId,
   };
 
   if (sessionId) {
     payload.sessionId = sessionId;
+  }
+
+  // cartId를 함께 보내면 지금 담고 있는 주문에 이어서 붙는다.
+  // sessionId 없이 cartId만 보내면 같은 장바구니에 새 메뉴를 시작한다.
+  if (cartId) {
+    payload.cartId = cartId;
   }
 
   const response = await apiClient.post<OrderApiResponse>('/api/order/speak', payload);
@@ -114,4 +128,21 @@ export const selectOrderOption = async (
     payload,
   );
   return response.data;
+};
+
+/** 장바구니에 담긴 메뉴 목록 */
+export const fetchCartMenus = async (cartId: string): Promise<CartMenusResponse> => {
+  const response = await apiClient.get<CartMenusResponse>(`/api/order/carts/${cartId}/menus`);
+  return response.data;
+};
+
+/** 장바구니 전체를 최종 주문으로 확정한다. */
+export const confirmCart = async (cartId: string): Promise<CartConfirmResponse> => {
+  const response = await apiClient.post<CartConfirmResponse>(`/api/order/carts/${cartId}/confirm`);
+  return response.data;
+};
+
+/** 장바구니에서 메뉴 하나를 뺀다. */
+export const removeCartSession = async (cartId: string, sessionId: string): Promise<void> => {
+  await apiClient.delete(`/api/order/carts/${cartId}/sessions/${sessionId}`);
 };

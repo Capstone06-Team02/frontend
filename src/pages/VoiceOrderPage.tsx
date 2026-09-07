@@ -4,13 +4,16 @@ import { AppHeader } from '../components/AppHeader';
 import { CompletePage } from './CompletePage';
 import {
   cacheRestaurantMenus,
+  confirmCart,
   fetchMenuOptionalOptions,
   fetchRecommendHints,
   fetchRecommendations,
+  fetchCartMenus,
   fetchRecommendationsByHint,
   fetchRequiredOptionSummary,
   fetchSignatureMenus,
   getDefaultRestaurantId,
+  removeCartSession,
   selectOrderOption,
   sendOrderText,
 } from '../api/order';
@@ -25,6 +28,7 @@ import type {
   OrderApiResponse,
   RecommendHint,
   RecommendationInfo,
+  CartMenuItem,
   RequiredOptionSummaryResponse,
   SignatureMenuInfo,
 } from '../types/order';
@@ -32,7 +36,7 @@ import { wantsRecommendation } from '../utils/cafeOrder';
 import { formatPrice } from '../utils/format';
 import { normalizeOrderText } from '../utils/voice';
 
-type ScreenMode = 'home' | 'featured-menu' | 'category-select' | 'category-menu' | 'full-menu' | 'order-dialog';
+type ScreenMode = 'home' | 'featured-menu' | 'category-select' | 'category-menu' | 'full-menu' | 'order-dialog' | 'cart';
 type DialogStep = 'input' | 'recommend-input' | 'recommend' | 'option' | 'confirm' | 'complete' | 'continue';
 type ViewSnapshot = {
   lastResponse: OrderApiResponse | null;
@@ -280,6 +284,10 @@ const TextCommandBox = ({
 export const VoiceOrderPage = () => {
   const [mode, setMode] = useState<ScreenMode>('home');
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // 장바구니 식별자. 여러 메뉴를 한 주문으로 묶는다. 주문을 확정할 때까지 유지한다.
+  const [cartId, setCartId] = useState<string | null>(null);
+  const [cartItems, setCartItems] = useState<CartMenuItem[]>([]);
+  const [justAddedMenu, setJustAddedMenu] = useState('');
   const [menuCache, setMenuCache] = useState<MenuCacheResponse | null>(null);
   const [lastResponse, setLastResponse] = useState<OrderApiResponse | null>(null);
   const [completeResponse, setCompleteResponse] = useState<OrderApiResponse | null>(null);
@@ -483,6 +491,67 @@ export const VoiceOrderPage = () => {
     setLoadingText('');
   };
 
+  /** 장바구니에 담긴 메뉴 목록을 다시 읽어온다. */
+  const refreshCart = async (id: string | null) => {
+    if (!id) {
+      setCartItems([]);
+      return;
+    }
+    try {
+      const data = await fetchCartMenus(id);
+      setCartItems(data.items ?? []);
+    } catch (error) {
+      console.error('장바구니 조회 실패:', error);
+      setCartItems([]);
+    }
+  };
+
+  /** 같은 장바구니에 메뉴를 하나 더 담는다. 세션만 비우고 cartId는 유지한다. */
+  const addAnotherMenu = () => {
+    setSessionId(null);
+    setJustAddedMenu('');
+    showDirectInput();
+  };
+
+  const removeCartItem = async (targetSessionId: string) => {
+    if (!cartId || isSubmitting) return;
+    setIsSubmitting(true);
+    startProcessingNotice();
+    try {
+      await removeCartSession(cartId, targetSessionId);
+      await refreshCart(cartId);
+    } catch (error) {
+      console.error('장바구니 항목 삭제 실패:', error);
+      setOrderDetailAnnouncement('메뉴를 빼지 못했어요. 다시 시도해 주세요.');
+    } finally {
+      stopProcessingNotice();
+      setIsSubmitting(false);
+    }
+  };
+
+  /** 장바구니 전체를 최종 주문으로 확정한다. */
+  const confirmWholeCart = async () => {
+    if (!cartId || isSubmitting) return;
+    setIsSubmitting(true);
+    startProcessingNotice();
+    try {
+      await confirmCart(cartId);
+      const names = cartItems.map((item) => item.menuName).filter(Boolean);
+      setCompleteResponse({
+        response: `주문 완료되었습니다. ${names.join(', ')} 준비해드릴게요!`,
+      });
+      setCartId(null);
+      setCartItems([]);
+      setSessionId(null);
+    } catch (error) {
+      console.error('주문 확정 실패:', error);
+      setOrderDetailAnnouncement('주문을 확정하지 못했어요. 다시 시도해 주세요.');
+    } finally {
+      stopProcessingNotice();
+      setIsSubmitting(false);
+    }
+  };
+
   const pushCurrentView = () => {
     const snapshot: ViewSnapshot = { mode, sessionId, lastResponse };
     const previous = viewHistoryRef.current.at(-1);
@@ -570,17 +639,28 @@ export const VoiceOrderPage = () => {
     startProcessingNotice();
     try {
       await ensureMenuCache();
-      const data = await sendOrderText(input, nextSessionId, RESTAURANT_ID);
+      const data = await sendOrderText(input, nextSessionId, RESTAURANT_ID, cartId);
       stopProcessingNotice();
       const newSessionId = data.sessionId ?? nextSessionId;
       setSessionId(newSessionId);
+      const newCartId = data.cartId ?? cartId;
+      if (newCartId !== cartId) setCartId(newCartId);
       setShowOptionalOptions(false);
       setRequiredSummary(null);
       setOptionalOptions(null);
       setSelectedOptionalOptions([]);
 
+      /*
+       * 메뉴 하나가 끝났다. 바로 완료 화면으로 보내지 않고 장바구니를 보여준다.
+       * 여기서 메뉴를 더 담을지, 이대로 주문할지 고를 수 있다.
+       */
       if (isFinalCompleteResponse(data)) {
-        setCompleteResponse(data);
+        setJustAddedMenu(getSlotMenu(data) ?? '');
+        setSessionId(null);
+        await refreshCart(newCartId);
+        pushCurrentView();
+        clearTransientAnnouncements();
+        setMode('cart');
         return;
       }
 
@@ -903,6 +983,77 @@ export const VoiceOrderPage = () => {
         onHome={goHome}
         speak={speak}
       />
+    );
+  }
+
+  if (mode === 'cart') {
+    return (
+      <div className="voisk-screen-bg text-ink">
+        {loadingText && <LoadingOverlay text={loadingText} />}
+        <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
+          <AppHeader onBack={goBack} subtitle="담은 메뉴" />
+          <p ref={responseGuideRef} tabIndex={0} className="sr-only">
+            {justAddedMenu
+              ? `${justAddedMenu}을 담았습니다. 담은 메뉴 ${cartItems.length}개입니다. 메뉴를 더 담거나 주문을 마칠 수 있습니다.`
+              : `담은 메뉴 ${cartItems.length}개입니다.`}
+          </p>
+          <div aria-live="polite" aria-atomic="true" className="sr-only">
+            {orderDetailAnnouncement}
+          </div>
+
+          {justAddedMenu && (
+            <p aria-hidden="true" className="mb-3 text-lg font-black text-accent">
+              {justAddedMenu} 담았습니다
+            </p>
+          )}
+
+          <div className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5">
+            <div className="grid gap-2">
+              {cartItems.map((item) => (
+                <div
+                  key={item.sessionId}
+                  className="flex items-center gap-3 rounded-lg border-4 border-line bg-surface px-5 py-3.5"
+                >
+                  <span className={`min-w-0 flex-1 break-keep font-black leading-tight text-ink ${getMenuNameSize(item.menuName)}`}>
+                    {item.menuName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeCartItem(item.sessionId)}
+                    aria-label={`${item.menuName} 빼기`}
+                    className="min-h-12 shrink-0 rounded-lg border-4 border-line px-4 text-base font-black text-muted focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
+                  >
+                    빼기
+                  </button>
+                </div>
+              ))}
+              {cartItems.length === 0 && (
+                <p className="rounded-lg border-4 border-line bg-surface px-5 py-4 text-lg font-black text-muted">
+                  담은 메뉴가 없습니다.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3">
+            <button
+              type="button"
+              onClick={addAnotherMenu}
+              className="min-h-16 rounded-xl border-4 border-line bg-surface px-5 text-xl font-black text-accent focus:outline focus:outline-4 focus:outline-focusring focus:[outline-offset:-4px]"
+            >
+              메뉴 더 담기
+            </button>
+            <button
+              type="button"
+              onClick={confirmWholeCart}
+              disabled={cartItems.length === 0}
+              className="min-h-16 rounded-xl border-4 border-accent bg-accent px-5 text-xl font-black text-on-accent shadow-[0_16px_38px_rgba(29,78,216,0.3)] focus:outline-none focus:ring-4 focus:ring-focusring disabled:opacity-60"
+            >
+              주문 마치기{cartItems.length > 0 && ` (${cartItems.length}개)`}
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
