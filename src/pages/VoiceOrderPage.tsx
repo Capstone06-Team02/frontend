@@ -219,14 +219,28 @@ const getRequiredOptionSelectionMap = (data: OrderApiResponse | null) =>
  * VoiceOver 사용자에게는 회전이 보이지 않으니 문구가 유일한 신호다.
  */
 const LoadingOverlay = ({ text }: { text: string }) => (
-  <div
-    role="status"
-    aria-live="polite"
-    className="voisk-overlay fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-page/75 px-6 backdrop-blur-md"
-  >
-    <span aria-hidden="true" className="voisk-spinner" />
-    <p className="text-2xl font-black text-ink">{text}</p>
-  </div>
+  <>
+    {/*
+      낭독 영역은 문구가 비어 있어도 화면에 남겨둔다. aria-live는 이미 내용이
+      들어찬 채로 나타나면 읽지 않고, 자리를 지키고 있다가 내용이 바뀔 때만 읽는다.
+      통째로 나타나게 두면 로딩 문구 대신 직전에 보던 요소가 계속 읽힌다.
+
+      assertive를 쓰는 이유는, 읽던 문장을 끊고 로딩을 먼저 알려야 하기 때문이다.
+      polite면 '텍스트 필드' 같은 앞선 낭독이 끝날 때까지 기다린다.
+    */}
+    <div role="status" aria-live="assertive" aria-atomic="true" className="voisk-overlay sr-only">
+      {text}
+    </div>
+    {text && (
+      <div
+        aria-hidden="true"
+        className="voisk-overlay fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-page/75 px-6 backdrop-blur-md"
+      >
+        <span className="voisk-spinner" />
+        <p className="text-2xl font-black text-ink">{text}</p>
+      </div>
+    )}
+  </>
 );
 
 const TextCommandBox = ({
@@ -1011,7 +1025,7 @@ export const VoiceOrderPage = () => {
   if (mode === 'cart') {
     return (
       <div className="voisk-screen-bg text-ink">
-        {loadingText && <LoadingOverlay text={loadingText} />}
+        <LoadingOverlay text={loadingText} />
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle="담은 메뉴" />
           <p ref={responseGuideRef} tabIndex={0} className="sr-only">
@@ -1076,7 +1090,7 @@ export const VoiceOrderPage = () => {
   if (mode === 'featured-menu') {
     return (
       <div className="voisk-screen-bg text-ink">
-        {loadingText && <LoadingOverlay text={loadingText} />}
+        <LoadingOverlay text={loadingText} />
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={RESTAURANT_DISPLAY_NAME} />
           <p ref={featuredGuideRef} tabIndex={0} className="sr-only">
@@ -1135,7 +1149,7 @@ export const VoiceOrderPage = () => {
   if (mode === 'category-select') {
     return (
       <div className="voisk-screen-bg text-ink">
-        {loadingText && <LoadingOverlay text={loadingText} />}
+        <LoadingOverlay text={loadingText} />
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={RESTAURANT_DISPLAY_NAME} />
           <p ref={categorySelectGuideRef} tabIndex={0} className="sr-only">
@@ -1176,7 +1190,7 @@ export const VoiceOrderPage = () => {
     const categoryMenus = groupedMenus.find(([name]) => name === selectedCategory)?.[1] ?? [];
     return (
       <div className="voisk-screen-bg text-ink">
-        {loadingText && <LoadingOverlay text={loadingText} />}
+        <LoadingOverlay text={loadingText} />
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={selectedCategory ?? '메뉴'} />
           <p className="mb-3 text-2xl font-black text-accent">{selectedCategory}</p>
@@ -1210,7 +1224,7 @@ export const VoiceOrderPage = () => {
   if (mode === 'full-menu') {
     return (
       <div className="voisk-screen-bg text-ink">
-        {loadingText && <LoadingOverlay text={loadingText} />}
+        <LoadingOverlay text={loadingText} />
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle="전체 메뉴" />
           <p ref={responseGuideRef} tabIndex={-1} className="sr-only">
@@ -1270,7 +1284,7 @@ export const VoiceOrderPage = () => {
 
     return (
       <div className="voisk-screen-bg select-none text-ink">
-        {loadingText && <LoadingOverlay text={loadingText} />}
+        <LoadingOverlay text={loadingText} />
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={STEP_TITLE[dialogStep]} />
           {responseGuideText && (
@@ -1549,7 +1563,7 @@ export const VoiceOrderPage = () => {
 
   return (
     <div className="voisk-screen-bg select-none text-ink">
-      {loadingText && <LoadingOverlay text={loadingText} />}
+      <LoadingOverlay text={loadingText} />
       <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
         <AppHeader hideBack />
         <p ref={homeGuideRef} tabIndex={-1} className="sr-only">
