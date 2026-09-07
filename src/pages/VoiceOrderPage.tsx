@@ -47,6 +47,8 @@ type SubmitOrderOptions = {
   optimisticSlotName?: string;
   optimisticSlotValue?: string;
   preserveInput?: boolean;
+  /** 옵션 버튼을 눌러서 보낸 요청인지. 음성·텍스트 입력과 구분한다. */
+  fromOptionButton?: boolean;
 };
 type HomeAction = {
   description: string;
@@ -306,6 +308,8 @@ export const VoiceOrderPage = () => {
   const [loadingText, setLoadingText] = useState('');
   // '다음'을 누른 응답을 기억한다. 누르기 전에는 옵션 화면을 유지한다.
   const [advancedResponseKey, setAdvancedResponseKey] = useState('');
+  // 마지막 선택이 버튼이었는지. 버튼으로 고를 때만 '다음'을 눌러 확인하게 한다.
+  const [lastPickWasButton, setLastPickWasButton] = useState(false);
   const [showOptionalOptions, setShowOptionalOptions] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -333,7 +337,12 @@ export const VoiceOrderPage = () => {
    */
   const backendStep = getDialogStep(lastResponse);
   const stepKey = `${sessionId ?? ''}-${lastResponse?.response ?? ''}`;
-  const holdingForNext = backendStep === 'confirm' && advancedResponseKey !== stepKey;
+  /*
+   * 버튼으로 고른 경우에만 붙잡는다. 음성으로 말한 사용자는 화면을 보지 않으니
+   * '다음' 버튼을 찾아 누를 수 없다. 그쪽은 필수 옵션이 차는 대로 진행한다.
+   */
+  const holdingForNext =
+    backendStep === 'confirm' && lastPickWasButton && advancedResponseKey !== stepKey;
   const dialogStep: DialogStep = holdingForNext ? 'option' : backendStep;
   const quickReplies = getReplies(lastResponse);
   const selectedMenu = getSlotMenu(lastResponse);
@@ -410,6 +419,16 @@ export const VoiceOrderPage = () => {
     // 타이머 체인이 겹쳐 같은 문장이 두 번 낭독된다.
     return () => timers.forEach((id) => window.clearTimeout(id));
   }, [lastResponse, dialogStep, mode, sessionId]);
+
+  /*
+   * 장바구니 화면에 들어오면 안내 문단으로 포커스를 옮긴다.
+   * 옮기지 않으면 직전 화면의 문장이 그대로 읽혀서, 무엇이 담겼는지 알 수 없다.
+   */
+  useEffect(() => {
+    if (mode !== 'cart') return;
+    const timer = window.setTimeout(() => responseGuideRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [mode]);
 
   useEffect(() => {
     if (mode !== 'featured-menu') return;
@@ -519,7 +538,9 @@ export const VoiceOrderPage = () => {
     startProcessingNotice();
     try {
       await removeCartSession(cartId, targetSessionId);
-      await refreshCart(cartId);
+      const next = await fetchCartMenus(cartId);
+      setCartItems(next.items ?? []);
+      setOrderDetailAnnouncement(`메뉴를 뺐습니다. 담은 메뉴 ${(next.items ?? []).length}개입니다.`);
     } catch (error) {
       console.error('장바구니 항목 삭제 실패:', error);
       setOrderDetailAnnouncement('메뉴를 빼지 못했어요. 다시 시도해 주세요.');
@@ -634,6 +655,7 @@ export const VoiceOrderPage = () => {
     const nextOptimisticRequiredOptions = optimisticSlotName
       ? { ...optimisticRequiredOptions, [optimisticSlotName]: optimisticSlotValue }
       : optimisticRequiredOptions;
+    setLastPickWasButton(Boolean(options.fromOptionButton));
     setIsSubmitting(true);
     clearTransientAnnouncements();
     startProcessingNotice();
@@ -1001,12 +1023,6 @@ export const VoiceOrderPage = () => {
             {orderDetailAnnouncement}
           </div>
 
-          {justAddedMenu && (
-            <p aria-hidden="true" className="mb-3 text-lg font-black text-accent">
-              {justAddedMenu} 담았습니다
-            </p>
-          )}
-
           <div className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5">
             <div className="grid gap-2">
               {cartItems.map((item) => (
@@ -1369,6 +1385,7 @@ export const VoiceOrderPage = () => {
                                 optimisticSlotName: slotName,
                                 optimisticSlotValue: candidate.name,
                                 preserveInput: true,
+                                fromOptionButton: true,
                               });
                             }}
                             aria-label={label}
