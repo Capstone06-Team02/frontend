@@ -189,21 +189,6 @@ const getOptionButtonLabel = (value: string) => {
 const getSelectedOptionalLabel = (option: OrderOptionSelectionResponse) =>
   `${option.optionGroupName} ${getOptionButtonLabel(option.selectedOptionItemName)}`;
 
-const getMissingRequiredOptionNames = (
-  data: OrderApiResponse | null,
-  optimisticSelections: Record<string, string> = {},
-) =>
-  getSlotOptionSlots(data)
-    .filter((slot) => {
-      if (!slot.required || getSelectedOptionValue(slot)) return false;
-      if (slot.name && optimisticSelections[slot.name]) return false;
-      return !slot.candidates?.some((candidate) =>
-        Object.values(optimisticSelections).includes(candidate.name),
-      );
-    })
-    .map((slot) => slot.name)
-    .filter((name): name is string => Boolean(name));
-
 const getRequiredSlotNameForChoice = (data: OrderApiResponse | null, choice: string) =>
   getSlotOptionSlots(data).find(
     (slot) =>
@@ -220,6 +205,25 @@ const getRequiredOptionSelectionMap = (data: OrderApiResponse | null) =>
       if (slot.name && selected) acc[slot.name] = selected;
       return acc;
     }, {});
+
+/*
+ * 로딩 오버레이.
+ * 화면을 덮어 기다리는 중임을 분명히 알리고, 그 사이 다른 버튼이 눌리는 것도 막는다.
+ * 회전판은 aria-hidden으로 감추고 문구만 role="status"로 읽힌다.
+ * VoiceOver 사용자에게는 회전이 보이지 않으니 문구가 유일한 신호다.
+ */
+const LoadingOverlay = ({ text }: { text: string }) => (
+  <div
+    role="status"
+    aria-live="polite"
+    className="fixed inset-0 z-50 flex items-center justify-center bg-page/85 px-6"
+  >
+    <div className="flex flex-col items-center gap-4 rounded-2xl border-4 border-line bg-surface px-10 py-8 shadow-[0_20px_50px_rgba(15,23,42,0.2)]">
+      <span aria-hidden="true" className="voisk-spinner" />
+      <p className="text-xl font-black text-ink">{text}</p>
+    </div>
+  </div>
+);
 
 const TextCommandBox = ({
   disabled = false,
@@ -293,6 +297,7 @@ export const VoiceOrderPage = () => {
   const [orderDetailAnnouncement, setOrderDetailAnnouncement] = useState('');
   const [confirmInitialAnnouncement, setConfirmInitialAnnouncement] = useState('');
   const [optionDescription, setOptionDescription] = useState('');
+  const [loadingText, setLoadingText] = useState('');
   const [showOptionalOptions, setShowOptionalOptions] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -305,8 +310,7 @@ export const VoiceOrderPage = () => {
   const firstCategoryButtonRef = useRef<HTMLButtonElement>(null);
   const categoryNavTypeRef = useRef<'entry' | 'back'>('entry');
   const lastResponseGuideFocusKeyRef = useRef('');
-  const processingNoticeTimerRef = useRef<number | null>(null);
-  const processingNoticeVisibleRef = useRef(false);
+  const loadingTimerRef = useRef<number | null>(null);
   const confirmAnnouncementRef = useRef<HTMLParagraphElement>(null);
   const confirmAnnouncementKeyRef = useRef('');
   const immediateFeedbackTimerRef = useRef<number | null>(null);
@@ -446,43 +450,27 @@ export const VoiceOrderPage = () => {
     setConfirmInitialAnnouncement('');
   };
 
-  const announceImmediateFeedback = (message: string) => {
-    if (immediateFeedbackTimerRef.current) {
-      window.clearTimeout(immediateFeedbackTimerRef.current);
-    }
-    setOrderDetailAnnouncement('');
-    immediateFeedbackTimerRef.current = window.setTimeout(() => {
-      setOrderDetailAnnouncement(message);
-      immediateFeedbackTimerRef.current = null;
-    }, 550);
-  };
-
   const announceOrderDetail = (message: string, clearDelay = 1800) => {
     setOrderDetailAnnouncement('');
     window.setTimeout(() => setOrderDetailAnnouncement(message), 50);
     window.setTimeout(() => setOrderDetailAnnouncement(''), clearDelay);
   };
 
+  /*
+   * 응답을 기다리는 동안 화면에 로딩 오버레이를 띄운다.
+   * 메뉴 캐시처럼 즉시 끝나는 호출에서 화면이 깜빡이지 않도록 아주 짧게 늦춘다.
+   */
   const startProcessingNotice = () => {
-    if (processingNoticeTimerRef.current) {
-      window.clearTimeout(processingNoticeTimerRef.current);
-    }
-    processingNoticeVisibleRef.current = false;
-    processingNoticeTimerRef.current = window.setTimeout(() => {
-      processingNoticeVisibleRef.current = true;
-      setOrderDetailAnnouncement('처리중입니다.');
-    }, 800);
+    if (loadingTimerRef.current) window.clearTimeout(loadingTimerRef.current);
+    loadingTimerRef.current = window.setTimeout(() => setLoadingText('로딩중입니다'), 120);
   };
 
   const stopProcessingNotice = () => {
-    if (processingNoticeTimerRef.current) {
-      window.clearTimeout(processingNoticeTimerRef.current);
-      processingNoticeTimerRef.current = null;
+    if (loadingTimerRef.current) {
+      window.clearTimeout(loadingTimerRef.current);
+      loadingTimerRef.current = null;
     }
-    if (processingNoticeVisibleRef.current) {
-      processingNoticeVisibleRef.current = false;
-      setOrderDetailAnnouncement('');
-    }
+    setLoadingText('');
   };
 
   const pushCurrentView = () => {
@@ -567,27 +555,9 @@ export const VoiceOrderPage = () => {
     const nextOptimisticRequiredOptions = optimisticSlotName
       ? { ...optimisticRequiredOptions, [optimisticSlotName]: optimisticSlotValue }
       : optimisticRequiredOptions;
-    const remainingRequiredOptionsAfterOptimistic = getMissingRequiredOptionNames(
-      lastResponse,
-      nextOptimisticRequiredOptions,
-    );
-    const shouldShowProcessingNotice =
-      dialogStep !== 'option' || !optimisticSlotName;
-
     setIsSubmitting(true);
     clearTransientAnnouncements();
-    if (shouldShowProcessingNotice) {
-      startProcessingNotice();
-    } else if (remainingRequiredOptionsAfterOptimistic.length > 0) {
-      if (immediateFeedbackTimerRef.current) window.clearTimeout(immediateFeedbackTimerRef.current);
-      setOrderDetailAnnouncement('');
-      immediateFeedbackTimerRef.current = window.setTimeout(() => {
-        setOrderDetailAnnouncement('처리중입니다.');
-        immediateFeedbackTimerRef.current = window.setTimeout(() => {
-          setOrderDetailAnnouncement('');
-        }, 1200);
-      }, 50);
-    }
+    startProcessingNotice();
     try {
       await ensureMenuCache();
       const data = await sendOrderText(input, nextSessionId, RESTAURANT_ID);
@@ -637,7 +607,6 @@ export const VoiceOrderPage = () => {
     }
 
     setIsSubmitting(true);
-    announceImmediateFeedback('추천 메뉴를 찾고 있습니다.');
     startProcessingNotice();
     try {
       await ensureMenuCache();
@@ -670,7 +639,6 @@ export const VoiceOrderPage = () => {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
-    announceImmediateFeedback(`${hint.label} 추천 메뉴를 찾고 있습니다.`);
     startProcessingNotice();
     try {
       await ensureMenuCache();
@@ -703,7 +671,6 @@ export const VoiceOrderPage = () => {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
-    announceImmediateFeedback('시그니처 메뉴를 불러오고 있습니다.');
     startProcessingNotice();
     try {
       await ensureMenuCache();
@@ -730,7 +697,6 @@ export const VoiceOrderPage = () => {
   const showCategoryBoard = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    announceImmediateFeedback('카테고리를 불러오고 있습니다.');
     startProcessingNotice();
     try {
       await ensureMenuCache();
@@ -755,7 +721,6 @@ export const VoiceOrderPage = () => {
   const showFullMenuBoard = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    announceImmediateFeedback('전체 메뉴를 불러오고 있습니다.');
     startProcessingNotice();
     try {
       await ensureMenuCache();
@@ -934,6 +899,7 @@ export const VoiceOrderPage = () => {
   if (mode === 'featured-menu') {
     return (
       <div className="voisk-screen-bg text-ink">
+        {loadingText && <LoadingOverlay text={loadingText} />}
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={RESTAURANT_DISPLAY_NAME} />
           <p ref={featuredGuideRef} tabIndex={0} className="sr-only">
@@ -992,6 +958,7 @@ export const VoiceOrderPage = () => {
   if (mode === 'category-select') {
     return (
       <div className="voisk-screen-bg text-ink">
+        {loadingText && <LoadingOverlay text={loadingText} />}
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={RESTAURANT_DISPLAY_NAME} />
           <p ref={categorySelectGuideRef} tabIndex={0} className="sr-only">
@@ -1032,6 +999,7 @@ export const VoiceOrderPage = () => {
     const categoryMenus = groupedMenus.find(([name]) => name === selectedCategory)?.[1] ?? [];
     return (
       <div className="voisk-screen-bg text-ink">
+        {loadingText && <LoadingOverlay text={loadingText} />}
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={selectedCategory ?? '메뉴'} />
           <p className="mb-3 text-2xl font-black text-accent">{selectedCategory}</p>
@@ -1065,6 +1033,7 @@ export const VoiceOrderPage = () => {
   if (mode === 'full-menu') {
     return (
       <div className="voisk-screen-bg text-ink">
+        {loadingText && <LoadingOverlay text={loadingText} />}
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle="전체 메뉴" />
           <p ref={responseGuideRef} tabIndex={-1} className="sr-only">
@@ -1124,6 +1093,7 @@ export const VoiceOrderPage = () => {
 
     return (
       <div className="voisk-screen-bg select-none text-ink">
+        {loadingText && <LoadingOverlay text={loadingText} />}
         <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
           <AppHeader onBack={goBack} subtitle={STEP_TITLE[dialogStep]} />
           {responseGuideText && (
@@ -1385,6 +1355,7 @@ export const VoiceOrderPage = () => {
 
   return (
     <div className="voisk-screen-bg select-none text-ink">
+      {loadingText && <LoadingOverlay text={loadingText} />}
       <div className="mx-auto flex h-dvh w-full max-w-[440px] flex-col px-5 pb-3 pt-[max(24px,env(safe-area-inset-top))]">
         <AppHeader hideBack />
         <p ref={homeGuideRef} tabIndex={-1} className="sr-only">

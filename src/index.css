@@ -109,3 +109,27 @@
 .voisk-screen-bg > * {
   position: relative;
 }
+
+/*
+ * 로딩 표시.
+ * VoiceOver 사용자에게는 애니메이션이 의미가 없으므로 회전판은 aria-hidden으로
+ * 감추고, 문구를 role="status"로 읽힌다. 화면을 보는 사용자에게는 회전이
+ * "기다리는 중"이라는 신호가 된다.
+ */
+.voisk-spinner {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 5px solid var(--voisk-line);
+  border-top-color: var(--voisk-accent);
+  border-radius: 9999px;
+  animation: voisk-spin 0.8s linear infinite;
+}
+
+@keyframes voisk-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 움직임을 줄이도록 설정한 사용자에게는 회전 대신 정지된 표식만 남긴다. */
+@media (prefers-reduced-motion: reduce) {
+  .voisk-spinner { animation: none; }
+}
