@@ -1225,11 +1225,11 @@ export const VoiceOrderPage = () => {
                             key={candidate.name}
                             type="button"
                             onClick={() => {
-                              // 백엔드는 옵션 이름만 보내면 슬롯에 반영하지 않는다.
-                              // 기본값 쪽이 '변경 안함' 문장을 쓰듯 여기도 문장으로 보낸다.
-                              const submitText = candidate.defaultSelected
-                                ? '변경 안함'
-                                : `${candidate.name} 선택`;
+                              // 옵션 이름을 그대로 보낸다. 백엔드는 이 값을 받으면
+                              // 슬롯에 바로 반영한다. '변경 안함'이나 '~ 선택' 같은 문장을
+                              // 보내면 "…로 선택할까요?" 확인 단계가 한 번 더 생기는데,
+                              // 그 확인 화면은 그리지 않으므로 버튼이 한 번 씹힌 것처럼 보인다.
+                              const submitText = candidate.name;
                               setOptimisticRequiredOptions((current) => ({
                                 ...current,
                                 [slotName]: candidate.name,
