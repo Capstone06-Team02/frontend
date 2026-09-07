@@ -106,7 +106,12 @@
   background: var(--voisk-page);
 }
 
-.voisk-screen-bg > * {
+/*
+ * 배경 그라데이션 위로 내용을 올리기 위한 규칙.
+ * 로딩 오버레이는 화면 중앙에 고정돼야 하므로 여기서 제외한다.
+ * 제외하지 않으면 position:fixed가 이 규칙에 덮여 흐름 맨 위에 그려진다.
+ */
+.voisk-screen-bg > *:not(.voisk-overlay) {
   position: relative;
 }
 

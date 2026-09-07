@@ -216,7 +216,7 @@ const LoadingOverlay = ({ text }: { text: string }) => (
   <div
     role="status"
     aria-live="polite"
-    className="fixed inset-0 z-50 flex items-center justify-center bg-page/85 px-6"
+    className="voisk-overlay fixed inset-0 z-50 flex items-center justify-center bg-page/85 px-6"
   >
     <div className="flex flex-col items-center gap-4 rounded-2xl border-4 border-line bg-surface px-10 py-8 shadow-[0_20px_50px_rgba(15,23,42,0.2)]">
       <span aria-hidden="true" className="voisk-spinner" />
